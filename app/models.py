@@ -38,3 +38,5 @@ class ResourceResult(BaseModel):
     resource: Resource
     distance_miles: float
     open_now: bool
+    availability: Availability
+    data_freshness: str

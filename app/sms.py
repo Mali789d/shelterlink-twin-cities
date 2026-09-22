@@ -37,7 +37,7 @@ def format_results(results: list[ResourceResult]) -> str:
     lines = ["Nearest resources:"]
     for result in results:
         status = "open" if result.open_now else "hours vary"
-        availability = result.resource.availability.value
+        availability = result.availability.value
         phone = f" {result.resource.phone}" if result.resource.phone else ""
         lines.append(
             f"{result.resource.name} - {result.distance_miles} mi, {status}, "

@@ -15,6 +15,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - return a short, readable list rather than a map-heavy interface;
 - show source and freshness so stale information is not presented as current;
 - support multiple resource categories and cities through one normalized schema;
+- expire availability claims after 24 hours so stale bed data becomes `unknown`;
 - let data providers be replaced without changing the search and SMS layers.
 
 ## Current MVP
@@ -67,7 +68,8 @@ expiration rules, and a human correction path before any public launch.
 - [x] SMS webhook and compact replies
 - [x] Tests for ranking, filters, parsing, and TwiML
 - [ ] Import verified Minneapolis, Hennepin County, Saint Paul, Ramsey County, and 211 resources
-- [ ] Add provider-reported availability and freshness expiration
+- [x] Add a 24-hour freshness policy that downgrades stale availability to unknown
+- [ ] Add provider-reported availability feeds
 - [ ] Add scheduled ingestion, deduplication, and change history
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard

@@ -33,3 +33,10 @@ def test_open_now_filter_uses_local_hours():
         "sample-minneapolis-shelter",
         "sample-st-paul-meal",
     }
+
+
+def test_stale_source_never_exposes_reported_availability():
+    observed = datetime(2026, 9, 23, 12, tzinfo=ZoneInfo("America/Chicago"))
+    result = find_resources(load_resources(), 44.9778, -93.2650, at=observed)[0]
+    assert result.data_freshness == "stale"
+    assert result.availability.value == "unknown"
