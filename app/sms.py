@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from html import escape
 
+from .i18n import AVAILABILITY, MESSAGES, Language, parse_language, strip_language_directive
 from .models import ResourceCategory, ResourceResult
 
 CATEGORY_WORDS = {
@@ -19,31 +20,36 @@ CATEGORY_WORDS = {
 class SmsQuery:
     location: str
     category: ResourceCategory | None
+    language: Language = Language.ENGLISH
 
 
 def parse_sms(body: str) -> SmsQuery | None:
-    text = " ".join(body.lower().split())
+    language = parse_language(body)
+    text = " ".join(strip_language_directive(body).lower().split())
     zip_match = re.search(r"\b\d{5}\b", text)
     category = next((value for word, value in CATEGORY_WORDS.items() if word in text), None)
     if zip_match:
-        return SmsQuery(zip_match.group(), category)
+        return SmsQuery(zip_match.group(), category, language)
     location = re.sub(r"\b(shelter|bed|meal|food|warm|warming|shower)\b", "", text).strip(" ,")
-    return SmsQuery(location, category) if location else None
+    return SmsQuery(location, category, language) if location else None
 
 
-def format_results(results: list[ResourceResult]) -> str:
+def format_results(
+    results: list[ResourceResult], language: Language = Language.ENGLISH
+) -> str:
+    messages = MESSAGES[language]
     if not results:
-        return "No matching resources found. Text another ZIP or call 211 for current local help."
-    lines = ["Nearest resources:"]
+        return messages["none"]
+    lines = [messages["heading"]]
     for result in results:
-        status = "open" if result.open_now else "hours vary"
-        availability = result.availability.value
+        status = messages["open"] if result.open_now else messages["hours_vary"]
+        availability = AVAILABILITY[language][result.availability.value]
         phone = f" {result.resource.phone}" if result.resource.phone else ""
         lines.append(
             f"{result.resource.name} - {result.distance_miles} mi, {status}, "
-            f"availability {availability}. {result.resource.address}.{phone}"
+            f"{messages['availability']} {availability}. {result.resource.address}.{phone}"
         )
-    lines.append("Info can change. Call first when possible. For current local help call 211; emergency 911.")
+    lines.append(messages["footer"])
     return "\n".join(lines)
 
 

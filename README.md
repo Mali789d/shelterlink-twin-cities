@@ -27,6 +27,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - ZIP/location parsing behind a replaceable geocoder interface
 - sample Twin Cities data marked as non-live
 - automated unit and API tests
+- English, Spanish, and Somali SMS responses using `lang en`, `lang es`, or `lang so`
 
 ## Run locally
 
@@ -73,4 +74,5 @@ expiration rules, and a human correction path before any public launch.
 - [ ] Add scheduled ingestion, deduplication, and change history
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard
-- [ ] Add Spanish, Somali, and Hmong response templates
+- [x] Add Spanish and Somali response templates
+- [ ] Add Hmong response templates and community language review

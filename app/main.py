@@ -2,6 +2,7 @@ from fastapi import FastAPI, Form, Query, Response
 
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder
+from .i18n import MESSAGES, Language, parse_language
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
 from .sms import format_results, parse_sms, twiml
@@ -33,14 +34,15 @@ def search_resources(
 
 @app.post("/sms")
 def sms(Body: str = Form(default="")) -> Response:
+    language = parse_language(Body)
     query = parse_sms(Body)
     if not query:
-        message = "Text a Twin Cities ZIP or location, optionally with shelter, meal, warming, or shower."
+        message = MESSAGES[language]["help"]
     else:
         coordinates = geocoder.geocode(query.location)
         if not coordinates:
-            message = "I couldn't find that location yet. Try a 5-digit Twin Cities ZIP or call 211."
+            message = MESSAGES[query.language]["unknown_location"]
         else:
             found = find_resources(resources, *coordinates, category=query.category, limit=3)
-            message = format_results(found)
+            message = format_results(found, query.language)
     return Response(twiml(message), media_type="application/xml")

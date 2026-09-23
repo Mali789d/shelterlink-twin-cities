@@ -30,3 +30,15 @@ def test_sms_endpoint_returns_twiml():
 def test_sms_endpoint_guides_invalid_location():
     response = client.post("/sms", data={"Body": "somewhere far away"})
     assert "couldn&#x27;t find" in response.text
+
+
+def test_sms_endpoint_supports_spanish():
+    response = client.post("/sms", data={"Body": "55415 shelter lang es"})
+    assert "Recursos más cercanos" in response.text
+    assert "La información puede cambiar" in response.text
+
+
+def test_sms_endpoint_supports_somali():
+    response = client.post("/sms", data={"Body": "55415 shelter lang so"})
+    assert "Adeegyada kuugu dhow" in response.text
+    assert "Xogtu way is beddeli kartaa" in response.text
