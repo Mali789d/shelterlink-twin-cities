@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Form, Query, Response
+from fastapi import FastAPI, Query, Request, Response
 
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder
 from .i18n import MESSAGES, Language, parse_language
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
+from .security import Verdict, WebhookSecurity
 from .sms import format_results, parse_sms, twiml
 
 app = FastAPI(
@@ -33,9 +34,20 @@ def search_resources(
 
 
 @app.post("/sms")
-def sms(Body: str = Form(default="")) -> Response:
-    language = parse_language(Body)
-    query = parse_sms(Body)
+async def sms(request: Request) -> Response:
+    form = await request.form()
+    params = {key: form.getlist(key) for key in form.keys()}
+    verdict = WebhookSecurity.from_env().check(
+        str(request.url), params, request.headers.get("X-Twilio-Signature")
+    )
+    if verdict is Verdict.REJECT:
+        return Response("Invalid Twilio signature", status_code=403, media_type="text/plain")
+    if verdict is Verdict.MISCONFIGURED:
+        return Response("SMS webhook is not configured", status_code=503, media_type="text/plain")
+
+    body = str(form.get("Body") or "")
+    language = parse_language(body)
+    query = parse_sms(body)
     if not query:
         message = MESSAGES[language]["help"]
     else:

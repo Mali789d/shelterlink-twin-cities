@@ -28,6 +28,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - sample Twin Cities data marked as non-live
 - automated unit and API tests
 - English, Spanish, and Somali SMS responses using `lang en`, `lang es`, or `lang so`
+- Twilio `X-Twilio-Signature` validation on the SMS webhook
 
 ## Run locally
 
@@ -56,6 +57,16 @@ curl -X POST http://localhost:8000/sms \
   --data-urlencode 'Body=55415 shelter'
 ```
 
+## Webhook security
+
+When `TWILIO_AUTH_TOKEN` is set, `/sms` only accepts requests carrying a valid
+`X-Twilio-Signature` (HMAC-SHA1 over the public URL and sorted form parameters) and returns
+`403` otherwise. This stops spoofed traffic from reaching the service or running up message
+costs. Set `PUBLIC_BASE_URL` to the externally visible origin when running behind API Gateway
+or another proxy, because Twilio signs the public URL. With `SHELTERLINK_ENV=production` and no
+token configured, the webhook returns `503` instead of silently accepting unsigned requests.
+Local development without a token accepts unsigned requests so the curl example works.
+
 ## Safety and data quality
 
 A directory can cause harm if it presents old hours or guessed bed availability as current. Every
@@ -72,6 +83,7 @@ expiration rules, and a human correction path before any public launch.
 - [x] Add a 24-hour freshness policy that downgrades stale availability to unknown
 - [ ] Add provider-reported availability feeds
 - [ ] Add scheduled ingestion, deduplication, and change history
+- [x] Validate Twilio webhook signatures
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard
 - [x] Add Spanish and Somali response templates
