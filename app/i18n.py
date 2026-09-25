@@ -21,7 +21,8 @@ ALIASES = {
 
 MESSAGES = {
     Language.ENGLISH: {
-        "help": "Text a Twin Cities ZIP or location, optionally with shelter, meal, warming, or shower. Add 'lang es' for Spanish or 'lang so' for Somali.",
+        "help": "Text a Twin Cities ZIP or location, optionally with shelter, meal, warming, or shower. Add 'lang es' for Spanish or 'lang so' for Somali. ShelterLink Twin Cities. Msg&data rates may apply. Reply STOP to opt out.",
+        "opt_in": "ShelterLink Twin Cities: you're subscribed again. Text a ZIP for nearby help. Reply STOP to opt out.",
         "unknown_location": "I couldn't find that location yet. Try a 5-digit Twin Cities ZIP or call 211.",
         "none": "No matching resources found. Text another ZIP or call 211 for current local help.",
         "heading": "Nearest resources:",
@@ -31,7 +32,8 @@ MESSAGES = {
         "footer": "Info can change. Call first when possible. For current local help call 211; emergency 911.",
     },
     Language.SPANISH: {
-        "help": "Envía un código postal o lugar de Twin Cities, con refugio, comida, centro de calor o ducha.",
+        "help": "Envía un código postal o lugar de Twin Cities, con refugio, comida, centro de calor o ducha. ShelterLink Twin Cities. Pueden aplicar tarifas. Responde STOP para cancelar.",
+        "opt_in": "ShelterLink Twin Cities: te suscribiste de nuevo. Envía un código postal. Responde STOP para cancelar.",
         "unknown_location": "No encontré ese lugar. Prueba un código postal de 5 dígitos o llama al 211.",
         "none": "No encontré recursos. Envía otro código postal o llama al 211 para ayuda actual.",
         "heading": "Recursos más cercanos:",
@@ -41,7 +43,8 @@ MESSAGES = {
         "footer": "La información puede cambiar. Llama primero si puedes. Ayuda local: 211; emergencia: 911.",
     },
     Language.SOMALI: {
-        "help": "Soo dir ZIP ama goob Twin Cities ah, kuna dar hoy, cunto, meel diirran, ama qubays.",
+        "help": "Soo dir ZIP ama goob Twin Cities ah, kuna dar hoy, cunto, meel diirran, ama qubays. ShelterLink Twin Cities. Kharash fariin ayaa dhici kara. Ku jawaab STOP si aad u joojiso.",
+        "opt_in": "ShelterLink Twin Cities: mar kale ayaad ku biirtay. Soo dir ZIP. Ku jawaab STOP si aad u joojiso.",
         "unknown_location": "Goobtaas ma helin. Isku day ZIP 5-lambar ah ama wac 211.",
         "none": "Wax adeeg ah lama helin. Soo dir ZIP kale ama wac 211 si aad u hesho xogta hadda.",
         "heading": "Adeegyada kuugu dhow:",

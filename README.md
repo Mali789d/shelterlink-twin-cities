@@ -29,6 +29,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - automated unit and API tests
 - English, Spanish, and Somali SMS responses using `lang en`, `lang es`, or `lang so`
 - Twilio `X-Twilio-Signature` validation on the SMS webhook
+- STOP/START/HELP keyword handling with hashed opt-out records
 
 ## Run locally
 
@@ -67,6 +68,20 @@ or another proxy, because Twilio signs the public URL. With `SHELTERLINK_ENV=pro
 token configured, the webhook returns `503` instead of silently accepting unsigned requests.
 Local development without a token accepts unsigned requests so the curl example works.
 
+## Opt-out and help keywords
+
+A message that is only an opt-out word (`STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`,
+`QUIT`, `REVOKE`, `OPTOUT`, `PARAR`, `JOOJI`) records the opt-out and gets an empty TwiML
+response, and that number gets no further replies until it texts `START`, `UNSTOP`, or `YES`.
+Twilio's standard opt-out handling sends the carrier confirmation. `HELP`/`INFO`, `AYUDA`, and
+`CAAWIMO` return program info and opt-out instructions in English, Spanish, or Somali, and
+they still work after an opt-out. Keywords match only when they are the whole message, so a
+search like `55415 end` still runs.
+
+Phone numbers are stored only as salted SHA-256 digests (`OPT_OUT_HASH_SALT`). The current
+store lives in memory and is lost on restart. A persistent store is required before public
+launch.
+
 ## Safety and data quality
 
 A directory can cause harm if it presents old hours or guessed bed availability as current. Every
@@ -84,6 +99,8 @@ expiration rules, and a human correction path before any public launch.
 - [ ] Add provider-reported availability feeds
 - [ ] Add scheduled ingestion, deduplication, and change history
 - [x] Validate Twilio webhook signatures
+- [x] Handle STOP/START/HELP keywords
+- [ ] Persist opt-outs in a durable store
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard
 - [x] Add Spanish and Somali response templates

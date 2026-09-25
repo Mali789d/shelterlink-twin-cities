@@ -3,6 +3,7 @@ from fastapi import FastAPI, Query, Request, Response
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder
 from .i18n import MESSAGES, Language, parse_language
+from .keywords import InMemoryOptOutStore, Keyword, classify_keyword
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
 from .security import Verdict, WebhookSecurity
@@ -15,6 +16,7 @@ app = FastAPI(
 )
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
+opt_outs = InMemoryOptOutStore()
 
 
 @app.get("/health")
@@ -46,6 +48,20 @@ async def sms(request: Request) -> Response:
         return Response("SMS webhook is not configured", status_code=503, media_type="text/plain")
 
     body = str(form.get("Body") or "")
+    sender = str(form.get("From") or "")
+    keyword = classify_keyword(body)
+    if keyword:
+        kind, keyword_language = keyword
+        if kind is Keyword.OPT_OUT:
+            opt_outs.opt_out(sender)
+            return Response(twiml(None), media_type="application/xml")
+        if kind is Keyword.OPT_IN:
+            opt_outs.opt_in(sender)
+            return Response(twiml(MESSAGES[Language.ENGLISH]["opt_in"]), media_type="application/xml")
+        return Response(twiml(MESSAGES[keyword_language]["help"]), media_type="application/xml")
+    if opt_outs.is_opted_out(sender):
+        return Response(twiml(None), media_type="application/xml")
+
     language = parse_language(body)
     query = parse_sms(body)
     if not query:

@@ -53,5 +53,7 @@ def format_results(
     return "\n".join(lines)
 
 
-def twiml(message: str) -> str:
+def twiml(message: str | None) -> str:
+    if message is None:
+        return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
     return f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{escape(message)}</Message></Response>'
