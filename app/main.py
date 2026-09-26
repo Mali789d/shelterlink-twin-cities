@@ -4,6 +4,7 @@ from .data import load_resources
 from .geocoding import DevelopmentGeocoder
 from .i18n import MESSAGES, Language, parse_language
 from .keywords import InMemoryOptOutStore, Keyword, classify_keyword
+from .legal import PRIVACY, TERMS, notice_page
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
 from .security import Verdict, WebhookSecurity
@@ -17,6 +18,16 @@ app = FastAPI(
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
+
+
+@app.get("/privacy", include_in_schema=False)
+def privacy():
+    return notice_page("Privacy", PRIVACY)
+
+
+@app.get("/terms", include_in_schema=False)
+def terms():
+    return notice_page("Terms", TERMS)
 
 
 @app.get("/health")

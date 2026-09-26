@@ -30,6 +30,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - English, Spanish, and Somali SMS responses using `lang en`, `lang es`, or `lang so`
 - Twilio `X-Twilio-Signature` validation on the SMS webhook
 - STOP/START/HELP keyword handling with hashed opt-out records
+- plain HTML prototype privacy and terms notices at `/privacy` and `/terms`
 
 ## Run locally
 
@@ -81,6 +82,15 @@ search like `55415 end` still runs.
 Phone numbers are stored only as salted SHA-256 digests (`OPT_OUT_HASH_SALT`). The current
 store lives in memory and is lost on restart. A persistent store is required before public
 launch.
+
+## Public notices
+
+`/privacy` and `/terms` are plain, accessible pre-launch pages. They explicitly say the
+service is a prototype without a public SMS number, and that sample listings are not
+current referrals. Before offering a public SMS number, review both notices against
+the actual Twilio/AWS configuration, retention, provider data and support contact.
+Publishing a prototype notice alone does not finish toll-free verification or make
+the service safe to launch.
 
 ## Safety and data quality
 
