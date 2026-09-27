@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ShelterLink prototype API (not a public live resource directory)
+
+Resources:
+  ShelterLinkApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+
+  ShelterLinkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.lambda_handler.handler
+      Runtime: python3.12
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          SHELTERLINK_ENV: production
+          # Supply TWILIO_AUTH_TOKEN and PUBLIC_BASE_URL securely before enabling SMS.
+          # Without the token, POST /sms fails closed with 503.
+      Events:
+        Health:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /health, Method: GET}
+        Search:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /resources/search, Method: GET}
+        Privacy:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /privacy, Method: GET}
+        Terms:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /terms, Method: GET}
+        Sms:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /sms, Method: POST}
+
+Outputs:
+  ApiUrl:
+    Description: Prototype API URL, not a live resource directory
+    Value: !Sub 'https://${ShelterLinkApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'

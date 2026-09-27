@@ -92,6 +92,19 @@ the actual Twilio/AWS configuration, retention, provider data and support contac
 Publishing a prototype notice alone does not finish toll-free verification or make
 the service safe to launch.
 
+## AWS Lambda packaging (not deployed)
+
+`template.yaml` defines an API Gateway HTTP API and Python Lambda handler using Mangum.
+The explicit routes are `/health`, `/resources/search`, `/privacy`, `/terms`, and `/sms`.
+`tests/test_lambda.py` runs HTTP API v2 events through the handler, including signed and
+unsigned SMS. AWS SAM builds dependencies from `requirements.txt` at the `CodeUri`.
+No AWS stack or public number has been created. Do not deploy for public use yet: the
+resource data and ZIP geocoder are development fixtures, opt-outs are not persistent,
+and the privacy/terms notices lack final hosting and contact details. The template sets
+`SHELTERLINK_ENV=production`, so `/sms` returns 503 without a Twilio auth token.
+Before deployment, securely provide the token and `PUBLIC_BASE_URL` matching the
+actual API URL, ensure durable opt-outs, verified resource data, and cost approval.
+
 ## Safety and data quality
 
 A directory can cause harm if it presents old hours or guessed bed availability as current. Every
@@ -111,6 +124,7 @@ expiration rules, and a human correction path before any public launch.
 - [x] Validate Twilio webhook signatures
 - [x] Handle STOP/START/HELP keywords
 - [ ] Persist opt-outs in a durable store
+- [x] Package API Gateway HTTP API and Lambda handler with local smoke tests
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard
 - [x] Add Spanish and Somali response templates
