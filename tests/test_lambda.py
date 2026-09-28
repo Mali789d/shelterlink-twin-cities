@@ -52,7 +52,9 @@ def test_lambda_signed_sms_twiml(monkeypatch):
         "x-twilio-signature": signature,
     }), None)
     assert result["statusCode"] == 200
-    assert "Nearest resources" in result["body"]
+    assert "not live yet" in result["body"]
+    assert "211" in result["body"] and "911" in result["body"]
+    assert "Sample" not in result["body"]
     assert result["headers"]["content-type"].startswith("application/xml")
 
 

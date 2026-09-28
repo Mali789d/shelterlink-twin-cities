@@ -98,7 +98,10 @@ the service safe to launch.
 The explicit routes are `/health`, `/resources/search`, `/privacy`, `/terms`, and `/sms`.
 `tests/test_lambda.py` runs HTTP API v2 events through the handler, including signed and
 unsigned SMS. AWS SAM builds dependencies from `requirements.txt` at the `CodeUri`.
-No AWS stack or public number has been created. Do not deploy for public use yet: the
+No AWS stack or public number has been created. In production mode, sample data makes
+`/resources/search` return 503 and a valid SMS search returns a 211/911 guidance
+message rather than a sample listing. STOP/START/HELP still work. Do not deploy for
+public use yet: the
 resource data and ZIP geocoder are development fixtures, opt-outs are not persistent,
 and the privacy/terms notices lack final hosting and contact details. The template sets
 `SHELTERLINK_ENV=production`, so `/sms` returns 503 without a Twilio auth token.

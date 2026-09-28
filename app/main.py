@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Query, Request, Response
+import os
+
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder
@@ -18,6 +20,13 @@ app = FastAPI(
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
+
+
+def prototype_data_only() -> bool:
+    """Production may not expose fixtures as a real nearby-resource directory."""
+    return os.environ.get("SHELTERLINK_ENV", "").lower() == "production" and (
+        not resources or any(item.is_sample for item in resources)
+    )
 
 
 @app.get("/privacy", include_in_schema=False)
@@ -43,6 +52,8 @@ def search_resources(
     open_now: bool = False,
     limit: int = Query(default=3, ge=1, le=10),
 ) -> list[ResourceResult]:
+    if prototype_data_only():
+        raise HTTPException(status_code=503, detail="Verified resource data is not available")
     return find_resources(resources, lat, lon, category, open_now, limit)
 
 
@@ -74,6 +85,8 @@ async def sms(request: Request) -> Response:
         return Response(twiml(None), media_type="application/xml")
 
     language = parse_language(body)
+    if prototype_data_only():
+        return Response(twiml(MESSAGES[language]["not_live"]), media_type="application/xml")
     query = parse_sms(body)
     if not query:
         message = MESSAGES[language]["help"]
