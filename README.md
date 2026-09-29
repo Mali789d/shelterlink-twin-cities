@@ -16,6 +16,7 @@ SMS works on basic phones, uses little data, and avoids an app install. The syst
 - show source and freshness so stale information is not presented as current;
 - support multiple resource categories and cities through one normalized schema;
 - expire availability claims after 24 hours so stale bed data becomes `unknown`;
+- never label a site `open` from stale or sample opening hours;
 - let data providers be replaced without changing the search and SMS layers.
 
 ## Current MVP
@@ -112,7 +113,9 @@ actual API URL, ensure durable opt-outs, verified resource data, and cost approv
 
 A directory can cause harm if it presents old hours or guessed bed availability as current. Every
 resource record therefore carries its source, last verification time, and availability status.
-Unknown availability stays unknown. The first production release will add official/provider data,
+Unknown availability stays unknown. The `open_now` filter excludes sample and stale hours,
+and SMS uses `hours vary` instead of `open` when hours have not been freshly verified.
+The first production release will add official/provider data,
 expiration rules, and a human correction path before any public launch.
 
 ## Roadmap

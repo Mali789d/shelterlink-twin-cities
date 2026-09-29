@@ -2,7 +2,7 @@ from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 from zoneinfo import ZoneInfo
 
-from .freshness import resource_freshness, safe_availability
+from .freshness import Freshness, resource_freshness, safe_availability
 from .models import Resource, ResourceCategory, ResourceResult
 
 TWIN_CITIES_TZ = ZoneInfo("America/Chicago")
@@ -38,7 +38,14 @@ def find_resources(
     observed_at = at or datetime.now(TWIN_CITIES_TZ)
     matches = []
     for resource in resources:
-        opened = is_open(resource, observed_at)
+        # A schedule alone cannot prove a site is currently open. Never present old
+        # or sample hours as live, even when the recorded clock range includes now.
+        fresh = resource_freshness(resource, observed_at)
+        opened = (
+            not resource.is_sample
+            and fresh is Freshness.CURRENT
+            and is_open(resource, observed_at)
+        )
         if category and resource.category != category:
             continue
         if open_now and not opened:
@@ -51,7 +58,7 @@ def find_resources(
                 ),
                 open_now=opened,
                 availability=safe_availability(resource, observed_at),
-                data_freshness=resource_freshness(resource, observed_at).value,
+                data_freshness=fresh.value,
             )
         )
     return sorted(matches, key=lambda item: item.distance_miles)[:limit]

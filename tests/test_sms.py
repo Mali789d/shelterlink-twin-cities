@@ -33,3 +33,5 @@ def test_formatted_message_uses_safe_result_availability():
     message = format_results(find_resources(load_resources(), 44.9778, -93.2650, at=observed))
     assert "availability unknown" in message
     assert "availability available" not in message
+    assert ", open, " not in message
+    assert "hours vary" in message
