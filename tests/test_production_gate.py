@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 import app.main as main
@@ -56,3 +58,8 @@ def test_empty_production_data_does_not_look_like_no_matching_resources(monkeypa
     monkeypatch.setenv("SHELTERLINK_ENV", "production")
     monkeypatch.setattr(main, "resources", [])
     assert client.get("/resources/search", params={"lat": 44.97, "lon": -93.26}).status_code == 503
+
+
+@pytest.fixture(autouse=True)
+def consent_backend(monkeypatch):
+    monkeypatch.setattr(main, "get_opt_out_store", lambda: main.opt_outs)

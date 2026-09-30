@@ -57,7 +57,8 @@ curl 'http://localhost:8000/resources/search?lat=44.9778&lon=-93.2650&category=s
 
 curl -X POST http://localhost:8000/sms \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-urlencode 'Body=55415 shelter'
+  --data-urlencode 'Body=55415 shelter' \
+  --data-urlencode 'From=+16125550100'
 ```
 
 ## Webhook security
@@ -80,9 +81,15 @@ Twilio's standard opt-out handling sends the carrier confirmation. `HELP`/`INFO`
 they still work after an opt-out. Keywords match only when they are the whole message, so a
 search like `55415 end` still runs.
 
-Phone numbers are stored only as salted SHA-256 digests (`OPT_OUT_HASH_SALT`). The current
-store lives in memory and is lost on restart. A persistent store is required before public
-launch.
+Phone numbers are stored only as salted SHA-256 digests (`OPT_OUT_HASH_SALT`).
+Development uses process-local memory. Production requires `OPT_OUT_TABLE` and a private,
+unchanging `OPT_OUT_HASH_SALT` of at least 32 characters, and uses DynamoDB with strongly consistent reads. Only the
+digest is saved, with no message body or automatic expiry. STOP survives separate Lambda
+instances; START deletes the digest. Missing configuration or a failed storage operation
+returns 503 without a message, never an in-memory fallback or a false START confirmation.
+An SMS without a sender is rejected. Changing the salt or table loses lookup continuity:
+preserve both across deployments and treat any migration as a consent-data migration.
+Local stubbed AWS API and shared-backend tests cover this contract; no AWS table exists yet.
 
 ## Public notices
 
@@ -101,13 +108,20 @@ The explicit routes are `/health`, `/resources/search`, `/privacy`, `/terms`, an
 unsigned SMS. AWS SAM builds dependencies from `requirements.txt` at the `CodeUri`.
 No AWS stack or public number has been created. In production mode, sample data makes
 `/resources/search` return 503 and a valid SMS search returns a 211/911 guidance
-message rather than a sample listing. STOP/START/HELP still work. Do not deploy for
+message rather than a sample listing when consent storage is configured. STOP/START/HELP
+use the durable store in production. Do not deploy for
 public use yet: the
-resource data and ZIP geocoder are development fixtures, opt-outs are not persistent,
+resource data and ZIP geocoder are development fixtures, durable opt-outs are not deployed,
 and the privacy/terms notices lack final hosting and contact details. The template sets
 `SHELTERLINK_ENV=production`, so `/sms` returns 503 without a Twilio auth token.
 Before deployment, securely provide the token and `PUBLIC_BASE_URL` matching the
-actual API URL, ensure durable opt-outs, verified resource data, and cost approval.
+actual API URL, deploy and verify durable opt-outs, verified resource data, and cost approval.
+The template prepares an encrypted DynamoDB table with 1 provisioned read/write capacity
+unit and a retained-on-delete policy, plus only GetItem/PutItem/DeleteItem permissions.
+It requires a private random salt of at least 32 characters. Never commit the salt or put
+it in shell history. The retained table can continue to incur costs after stack deletion:
+review account-specific pricing/free-tier eligibility and consent retention before deploy
+or cleanup. This configuration is preparation, not a claim of a free or live deployment.
 
 ## Safety and data quality
 
@@ -129,7 +143,8 @@ expiration rules, and a human correction path before any public launch.
 - [ ] Add scheduled ingestion, deduplication, and change history
 - [x] Validate Twilio webhook signatures
 - [x] Handle STOP/START/HELP keywords
-- [ ] Persist opt-outs in a durable store
+- [x] Implement DynamoDB opt-outs with local contract and failure tests
+- [ ] Deploy and verify durable opt-outs across real Lambda instances
 - [x] Package API Gateway HTTP API and Lambda handler with local smoke tests
 - [ ] Deploy API and SMS webhook on AWS
 - [ ] Build an outreach-worker dashboard

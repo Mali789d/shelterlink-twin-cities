@@ -5,7 +5,9 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder
 from .i18n import MESSAGES, Language, parse_language
-from .keywords import InMemoryOptOutStore, Keyword, classify_keyword
+from .keywords import (
+    InMemoryOptOutStore, Keyword, OptOutStore, classify_keyword, durable_opt_out_store,
+)
 from .legal import PRIVACY, TERMS, notice_page
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
@@ -20,6 +22,14 @@ app = FastAPI(
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
+
+
+def get_opt_out_store() -> OptOutStore:
+    if os.environ.get("SHELTERLINK_ENV", "").lower() != "production":
+        return opt_outs
+    return durable_opt_out_store(
+        os.environ.get("OPT_OUT_TABLE", ""), os.environ.get("OPT_OUT_HASH_SALT", ""),
+    )
 
 
 def prototype_data_only() -> bool:
@@ -71,18 +81,26 @@ async def sms(request: Request) -> Response:
 
     body = str(form.get("Body") or "")
     sender = str(form.get("From") or "")
+    if not sender:
+        return Response("SMS sender is required", status_code=400, media_type="text/plain")
     keyword = classify_keyword(body)
-    if keyword:
-        kind, keyword_language = keyword
-        if kind is Keyword.OPT_OUT:
-            opt_outs.opt_out(sender)
+    try:
+        store = get_opt_out_store()
+        if keyword:
+            kind, keyword_language = keyword
+            if kind is Keyword.OPT_OUT:
+                store.opt_out(sender)
+                return Response(twiml(None), media_type="application/xml")
+            if kind is Keyword.OPT_IN:
+                store.opt_in(sender)
+                return Response(twiml(MESSAGES[Language.ENGLISH]["opt_in"]), media_type="application/xml")
+            return Response(twiml(MESSAGES[keyword_language]["help"]), media_type="application/xml")
+        if store.is_opted_out(sender):
             return Response(twiml(None), media_type="application/xml")
-        if kind is Keyword.OPT_IN:
-            opt_outs.opt_in(sender)
-            return Response(twiml(MESSAGES[Language.ENGLISH]["opt_in"]), media_type="application/xml")
-        return Response(twiml(MESSAGES[keyword_language]["help"]), media_type="application/xml")
-    if opt_outs.is_opted_out(sender):
-        return Response(twiml(None), media_type="application/xml")
+    except Exception:
+        # Never acknowledge START or send a referral if consent storage is unavailable.
+        # Do not log exceptions here: provider errors can contain request data.
+        return Response("SMS consent storage is unavailable", status_code=503, media_type="text/plain")
 
     language = parse_language(body)
     if prototype_data_only():

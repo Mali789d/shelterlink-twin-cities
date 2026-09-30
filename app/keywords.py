@@ -11,6 +11,7 @@ an opt-out list cannot be read back as a list of people who used a homeless-serv
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 import os
 import re
 from enum import Enum
@@ -84,3 +85,52 @@ class InMemoryOptOutStore:
 
     def stored_digests(self) -> frozenset[str]:
         return frozenset(self._opted_out)
+
+
+class OptOutStoreUnavailable(RuntimeError):
+    """A consent decision could not be safely read or saved."""
+
+
+class DynamoDBOptOutStore:
+    """Shared opt-outs with no raw numbers, message bodies, or automatic expiry."""
+
+    def __init__(self, table: str, salt: str, client=None) -> None:
+        if not table.strip() or len(salt.strip()) < 32 or salt == "dev-salt":
+            raise OptOutStoreUnavailable("Durable opt-outs require a table and private salt")
+        self._table = table
+        self._salt = salt
+        if client is None:
+            import boto3
+            client = boto3.client("dynamodb")
+        self._client = client
+
+    def _key(self, phone: str) -> dict:
+        if not phone:
+            raise OptOutStoreUnavailable("Sender is required")
+        return {"phone_hash": {"S": hash_phone(phone, self._salt)}}
+
+    def is_opted_out(self, phone: str) -> bool:
+        try:
+            result = self._client.get_item(
+                TableName=self._table, Key=self._key(phone), ConsistentRead=True,
+            )
+            return "Item" in result
+        except Exception as exc:
+            raise OptOutStoreUnavailable("Cannot read opt-out state") from exc
+
+    def opt_out(self, phone: str) -> None:
+        try:
+            self._client.put_item(TableName=self._table, Item=self._key(phone))
+        except Exception as exc:
+            raise OptOutStoreUnavailable("Cannot save opt-out state") from exc
+
+    def opt_in(self, phone: str) -> None:
+        try:
+            self._client.delete_item(TableName=self._table, Key=self._key(phone))
+        except Exception as exc:
+            raise OptOutStoreUnavailable("Cannot remove opt-out state") from exc
+
+
+@lru_cache(maxsize=1)
+def durable_opt_out_store(table: str, salt: str) -> DynamoDBOptOutStore:
+    return DynamoDBOptOutStore(table, salt)

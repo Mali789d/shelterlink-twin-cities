@@ -2,7 +2,32 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: ShelterLink prototype API (not a public live resource directory)
 
+Parameters:
+  OptOutHashSalt:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Private random salt; preserve it across deployments to retain opt-outs
+
 Resources:
+  OptOutTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: phone_hash
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phone_hash
+          KeyType: HASH
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      SSESpecification:
+        SSEEnabled: true
+
   ShelterLinkApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -16,9 +41,20 @@ Resources:
       Runtime: python3.12
       MemorySize: 128
       Timeout: 10
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt OptOutTable.Arn
       Environment:
         Variables:
           SHELTERLINK_ENV: production
+          OPT_OUT_TABLE: !Ref OptOutTable
+          OPT_OUT_HASH_SALT: !Ref OptOutHashSalt
           # Supply TWILIO_AUTH_TOKEN and PUBLIC_BASE_URL securely before enabling SMS.
           # Without the token, POST /sms fails closed with 503.
       Events:

@@ -42,6 +42,8 @@ def test_lambda_unsigned_sms_fails_closed_in_production(monkeypatch):
 
 
 def test_lambda_signed_sms_twiml(monkeypatch):
+    import app.main as main
+    monkeypatch.setattr(main, "get_opt_out_store", lambda: main.InMemoryOptOutStore("test"))
     monkeypatch.setenv("SHELTERLINK_ENV", "production")
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", "test-token")
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://test.execute-api.us-east-1.amazonaws.com")
@@ -67,3 +69,21 @@ def test_template_has_explicit_routes_and_production_fail_closed():
         "Path: /privacy, Method: GET", "Path: /terms, Method: GET",
     ):
         assert fragment in text
+
+
+def test_template_retains_consent_and_limits_permissions():
+    text = open("template.yaml").read()
+    for fragment in (
+        "DeletionPolicy: Retain", "UpdateReplacePolicy: Retain",
+        "AttributeName: phone_hash",
+    ):
+        assert fragment in text
+    for fragment in (
+        "NoEcho: true", "MinLength: 32", "OPT_OUT_TABLE: !Ref OptOutTable",
+        "OPT_OUT_HASH_SALT: !Ref OptOutHashSalt", "SSEEnabled: true",
+        "Resource: !GetAtt OptOutTable.Arn", "dynamodb:GetItem",
+        "dynamodb:PutItem", "dynamodb:DeleteItem",
+    ):
+        assert fragment in text
+    assert "dynamodb:*" not in text
+    assert "TimeToLiveSpecification" not in text
