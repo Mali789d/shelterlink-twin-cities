@@ -123,6 +123,26 @@ it in shell history. The retained table can continue to incur costs after stack 
 review account-specific pricing/free-tier eligibility and consent retention before deploy
 or cleanup. This configuration is preparation, not a claim of a free or live deployment.
 
+## Validated resource snapshots
+
+`load_resources()` reads the development fixture by default. Set `SHELTERLINK_DATA_PATH`
+to a reviewed JSON snapshot or pass a path directly to the loader. A snapshot must be
+an array of records with unique IDs. The whole snapshot is rejected if any record is
+invalid; there is no silent partial import. Verification timestamps must include a
+timezone, and identity/address/source fields cannot be blank.
+
+Records without `is_sample` default to `true`. Only explicitly reviewed records should
+set it to `false`; that field is an operator assertion, not automatic provider verification.
+Production continues to reject empty snapshots or any snapshot containing sample records.
+Sample availability is always `unknown`, even with a fresh timestamp.
+
+Weekly hours use weekday keys 0 (Monday) through 6 (Sunday), and zero-padded `HH:MM`
+intervals. Start must be before end; `24:00` is allowed only as an end time. Represent
+an overnight schedule as two intervals on adjacent weekdays, for example Monday
+`22:00` to `24:00` and Tuesday `00:00` to `02:00`. End times are exclusive.
+An invalid snapshot stops startup rather than falling back to an old or sample directory.
+This loader does not fetch or verify provider data; the bundled records remain samples.
+
 ## Safety and data quality
 
 A directory can cause harm if it presents old hours or guessed bed availability as current. Every

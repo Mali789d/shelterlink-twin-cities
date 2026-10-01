@@ -4,6 +4,7 @@ import pytest
 
 from app.freshness import Freshness, resource_freshness, safe_availability
 from app.models import Availability, Resource, ResourceCategory
+from pydantic import ValidationError
 
 
 def resource(verified_at: datetime, availability: Availability = Availability.AVAILABLE):
@@ -18,6 +19,7 @@ def resource(verified_at: datetime, availability: Availability = Availability.AV
         source_name="Test source",
         source_url="https://example.com/source",
         verified_at=verified_at,
+        is_sample=False,
     )
 
 
@@ -42,5 +44,11 @@ def test_future_verification_timestamp_is_stale():
 
 def test_naive_timestamp_is_rejected():
     now = datetime(2026, 9, 21, 12, tzinfo=timezone.utc)
-    with pytest.raises(ValueError, match="timezone"):
-        resource_freshness(resource(datetime(2026, 9, 21, 10)), now)
+    with pytest.raises(ValidationError, match="timezone"):
+        resource(datetime(2026, 9, 21, 10))
+
+
+def test_sample_availability_never_becomes_live_even_when_fresh():
+    now = datetime(2026, 9, 21, 12, tzinfo=timezone.utc)
+    item = resource(now).model_copy(update={"is_sample": True})
+    assert safe_availability(item, now) == Availability.UNKNOWN

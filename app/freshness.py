@@ -29,7 +29,7 @@ def safe_availability(
     at: datetime,
     max_age: timedelta = DEFAULT_MAX_AGE,
 ) -> Availability:
-    """Hide an availability claim after its source passes the freshness limit."""
-    if resource_freshness(resource, at, max_age) == Freshness.STALE:
+    """Hide sample availability and claims past the source freshness limit."""
+    if resource.is_sample or resource_freshness(resource, at, max_age) == Freshness.STALE:
         return Availability.UNKNOWN
     return resource.availability

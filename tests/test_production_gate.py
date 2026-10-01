@@ -63,3 +63,12 @@ def test_empty_production_data_does_not_look_like_no_matching_resources(monkeypa
 @pytest.fixture(autouse=True)
 def consent_backend(monkeypatch):
     monkeypatch.setattr(main, "get_opt_out_store", lambda: main.opt_outs)
+
+
+def test_missing_live_provenance_marker_keeps_production_gate_closed(monkeypatch):
+    monkeypatch.setenv("SHELTERLINK_ENV", "production")
+    data = main.resources[0].model_dump()
+    del data["is_sample"]
+    item = Resource.model_validate(data)
+    monkeypatch.setattr(main, "resources", [item])
+    assert client.get("/resources/search", params={"lat": 44.97, "lon": -93.26}).status_code == 503
