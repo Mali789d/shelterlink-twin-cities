@@ -45,6 +45,8 @@ def _url_variants(url: str) -> list[str]:
     variants = [url]
     default_port = {"https": 443, "http": 80}.get(parts.scheme)
     host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
     if parts.port is None and default_port:
         variants.append(urlunsplit(parts._replace(netloc=f"{host}:{default_port}")))
     elif parts.port == default_port:
@@ -58,12 +60,34 @@ def is_valid_signature(
     params: Mapping[str, str | Iterable[str]],
     signature: str | None,
 ) -> bool:
-    if not signature:
+    if not signature or not signature.isascii():
         return False
-    return any(
-        hmac.compare_digest(compute_signature(auth_token, candidate, params), signature)
-        for candidate in _url_variants(url)
-    )
+    try:
+        return any(
+            hmac.compare_digest(compute_signature(auth_token, candidate, params), signature)
+            for candidate in _url_variants(url)
+        )
+    except ValueError:
+        return False
+
+
+def valid_public_origin(url: str | None, require_https: bool = False) -> bool:
+    """Only a trusted origin is configurable; never credentials, paths or queries."""
+    if not url or any(char.isspace() for char in url):
+        return False
+    try:
+        parts = urlsplit(url)
+        # Accessing port also validates its numeric value and range.
+        port = parts.port
+        return bool(
+            parts.hostname
+            and parts.scheme in ({"https"} if require_https else {"http", "https"})
+            and parts.username is None and parts.password is None
+            and parts.path in {"", "/"} and not parts.query and not parts.fragment
+            and (port is None or port > 0)
+        )
+    except ValueError:
+        return False
 
 
 class Verdict(str, Enum):
@@ -101,6 +125,10 @@ class WebhookSecurity:
         params: Mapping[str, str | Iterable[str]],
         signature: str | None,
     ) -> Verdict:
+        if self.production and not valid_public_origin(self.public_base_url, require_https=True):
+            return Verdict.MISCONFIGURED
+        if self.public_base_url and not valid_public_origin(self.public_base_url):
+            return Verdict.MISCONFIGURED
         if not self.auth_token:
             return Verdict.MISCONFIGURED if self.production else Verdict.ACCEPT
         if is_valid_signature(self.auth_token, self.signed_url(request_url), params, signature):

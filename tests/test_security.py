@@ -93,3 +93,59 @@ def test_sms_webhook_returns_503_when_production_secret_missing(monkeypatch):
     monkeypatch.setenv("SHELTERLINK_ENV", "production")
     response = client.post("/sms", data={"Body": "55415 shelter"})
     assert response.status_code == 503
+
+
+@pytest.mark.parametrize("origin", [
+    None, "", "http://sms.example", "https://", "https://sms.example/path",
+    "https://sms.example?token=x", "https://sms.example#fragment",
+    "https://user:password@sms.example", "https://sms.example:invalid",
+    "https://sms.example:99999", "https://sms.example:0", "https://sms .example",
+])
+def test_production_requires_valid_trusted_https_origin(origin):
+    security = WebhookSecurity(TOKEN, origin, True)
+    assert security.check("https://forged-host.example/sms", {}, None) is Verdict.MISCONFIGURED
+
+
+def test_production_does_not_trust_request_host_when_origin_missing():
+    url = "https://attacker.example/sms"
+    signature = compute_signature(TOKEN, url, {})
+    assert WebhookSecurity(TOKEN, None, True).check(url, {}, signature) is Verdict.MISCONFIGURED
+
+
+def test_production_verifies_configured_origin_not_request_host():
+    security = WebhookSecurity(TOKEN, "https://sms.example", True)
+    params = {"Body": "HELP"}
+    signature = compute_signature(TOKEN, "https://sms.example/sms", params)
+    assert security.check("http://internal/sms", params, signature) is Verdict.ACCEPT
+    forged = compute_signature(TOKEN, "https://attacker.example/sms", params)
+    assert security.check("https://attacker.example/sms", params, forged) is Verdict.REJECT
+
+
+@pytest.mark.parametrize("signature", ["invalid", "é", "☃", "", None])
+def test_invalid_signature_is_rejected_without_exception(signature):
+    assert not is_valid_signature(TOKEN, "https://sms.example/sms", {}, signature)
+
+
+def test_malformed_request_port_is_rejected_without_exception():
+    assert not is_valid_signature(TOKEN, "https://sms.example:bad/sms", {}, "abc")
+
+
+def test_bad_origin_configuration_returns_503_without_consent_mutation(monkeypatch):
+    import app.main as main
+    monkeypatch.setenv("SHELTERLINK_ENV", "production")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", TOKEN)
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    def forbidden():
+        pytest.fail("consent backend must not be used when origin is misconfigured")
+    monkeypatch.setattr(main, "get_opt_out_store", forbidden)
+    data = {"Body": "START", "From": "+16125550100"}
+    signature = compute_signature(TOKEN, "http://testserver/sms", data)
+    response = client.post("/sms", data=data, headers={"X-Twilio-Signature": signature})
+    assert response.status_code == 503
+    assert "<Message>" not in response.text
+
+
+def test_ipv6_default_port_variants_preserve_brackets():
+    params = {"Body": "HELP"}
+    signature = compute_signature(TOKEN, "https://[::1]:443/sms", params)
+    assert is_valid_signature(TOKEN, "https://[::1]/sms", params, signature)

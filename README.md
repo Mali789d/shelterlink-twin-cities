@@ -69,6 +69,11 @@ When `TWILIO_AUTH_TOKEN` is set, `/sms` only accepts requests carrying a valid
 costs. Set `PUBLIC_BASE_URL` to the externally visible origin when running behind API Gateway
 or another proxy, because Twilio signs the public URL. With `SHELTERLINK_ENV=production` and no
 token configured, the webhook returns `503` instead of silently accepting unsigned requests.
+Production also requires an explicit HTTPS `PUBLIC_BASE_URL` origin. Credentials, paths,
+query strings, fragments, whitespace, and invalid ports are rejected as configuration
+errors before consent storage is touched. The request Host header is never a substitute
+for that configured production origin. Invalid/non-ASCII signatures return rejection,
+not a server error.
 Local development without a token accepts unsigned requests so the curl example works.
 
 ## Opt-out and help keywords
