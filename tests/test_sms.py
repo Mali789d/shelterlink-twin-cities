@@ -1,3 +1,6 @@
+import pytest
+
+from app.i18n import Language
 from app.models import ResourceCategory
 from app.sms import parse_sms, twiml
 
@@ -35,3 +38,49 @@ def test_formatted_message_uses_safe_result_availability():
     assert "availability available" not in message
     assert ", open, " not in message
     assert "hours vary" in message
+
+
+
+@pytest.mark.parametrize("term,category", [
+    ("shelter", ResourceCategory.SHELTER), ("bed", ResourceCategory.SHELTER),
+    ("refugio", ResourceCategory.SHELTER), ("hoy", ResourceCategory.SHELTER),
+    ("meal", ResourceCategory.MEAL), ("food", ResourceCategory.MEAL),
+    ("comida", ResourceCategory.MEAL), ("cunto", ResourceCategory.MEAL),
+    ("warm", ResourceCategory.WARMING), ("warming", ResourceCategory.WARMING),
+    ("centro de calor", ResourceCategory.WARMING), ("meel diirran", ResourceCategory.WARMING),
+    ("shower", ResourceCategory.SHOWER), ("ducha", ResourceCategory.SHOWER),
+    ("qubays", ResourceCategory.SHOWER),
+])
+def test_advertised_category_terms_work_for_zip_and_named_location(term, category):
+    for location in ("55415", "Saint Paul"):
+        query = parse_sms(f"{location} {term}")
+        assert query.location == location.lower()
+        assert query.category == category
+
+
+@pytest.mark.parametrize("location", ["Bedford", "Warman", "Foodland", "Showerville"])
+def test_category_substrings_in_place_names_do_not_select_service(location):
+    query = parse_sms(location)
+    assert query.location == location.lower()
+    assert query.category is None
+
+
+def test_longer_warming_word_removed_from_named_location():
+    query = parse_sms("Saint Paul warming")
+    assert query.location == "saint paul"
+    assert query.category == ResourceCategory.WARMING
+
+
+@pytest.mark.parametrize("body", ["55415 food shower", "Saint Paul hoy cunto", "55415 refugio ducha lang es"])
+def test_multiple_distinct_services_require_clarification(body):
+    assert parse_sms(body) is None
+
+
+def test_synonyms_for_same_category_are_not_ambiguous():
+    assert parse_sms("55415 shelter bed").category == ResourceCategory.SHELTER
+
+
+def test_category_does_not_override_explicit_language():
+    query = parse_sms("55415 hoy lang es")
+    assert query.language == Language.SPANISH
+    assert query.category == ResourceCategory.SHELTER

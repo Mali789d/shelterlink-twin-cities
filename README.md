@@ -61,6 +61,20 @@ curl -X POST http://localhost:8000/sms \
   --data-urlencode 'From=+16125550100'
 ```
 
+## SMS service vocabulary
+
+The parser accepts the service terms advertised in each HELP reply: English
+`shelter`/`bed`, `meal`/`food`, `warm`/`warming`, `shower`; Spanish `refugio`,
+`comida`, `centro de calor`, `ducha`; Somali `hoy`, `cunto`, `meel diirran`, `qubays`.
+These work with a ZIP or a supported named location, for example `55101 comida lang es`
+or `Saint Paul cunto lang so`. Use an explicit language directive to choose the reply
+language; service vocabulary alone does not select it.
+
+Only whole words/phrases select a category, so a place like Bedford does not mean
+`bed`. If a message includes multiple different service categories, the webhook returns
+HELP instead of silently picking one. Send one service per search. Named locations still
+use the small development geocoder, not a live geocoding service.
+
 ## Webhook security
 
 When `TWILIO_AUTH_TOKEN` is set, `/sms` only accepts requests carrying a valid

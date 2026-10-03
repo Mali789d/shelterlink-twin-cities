@@ -42,3 +42,26 @@ def test_sms_endpoint_supports_somali():
     response = client.post("/sms", data={"From": "+16125550100", "Body": "55415 shelter lang so"})
     assert "Adeegyada kuugu dhow" in response.text
     assert "Xogtu way is beddeli kartaa" in response.text
+
+
+import pytest
+
+
+@pytest.mark.parametrize("body,heading", [
+    ("55101 comida lang es", "Recursos más cercanos"),
+    ("Saint Paul cunto lang so", "Adeegyada kuugu dhow"),
+])
+def test_translated_service_words_filter_results(body, heading):
+    response = client.post("/sms", data={"From": "+16125550199", "Body": body})
+    assert response.status_code == 200
+    assert heading in response.text
+    assert "Sample Saint Paul Meal Site" in response.text
+    assert "Sample Minneapolis Shelter" not in response.text
+    assert "211" in response.text and "911" in response.text
+
+
+def test_multiple_services_do_not_silently_send_one_category():
+    response = client.post("/sms", data={"From": "+16125550199", "Body": "55415 food shower"})
+    assert response.status_code == 200
+    assert "Sample" not in response.text
+    assert "Text a Twin Cities ZIP" in response.text
