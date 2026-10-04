@@ -90,6 +90,15 @@ for that configured production origin. Invalid/non-ASCII signatures return rejec
 not a server error.
 Local development without a token accepts unsigned requests so the curl example works.
 
+The SMS endpoint accepts only `application/x-www-form-urlencoded` requests. It reads
+at most 16 KiB, including streamed requests without a Content-Length, and at most 64
+form fields. Invalid UTF-8/percent escapes and duplicate Body/From/To/message/account
+identity fields are rejected before signature and consent processing. Repeated
+noncritical fields remain supported and all values participate in signature validation.
+Limits apply to inbound metadata, not just the user's text. Multipart uploads and JSON
+are not SMS webhook inputs. These limits bound application parsing work; they do not
+replace gateway throttling or upstream traffic-cost controls.
+
 ## Opt-out and help keywords
 
 A message that is only an opt-out word (`STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`,

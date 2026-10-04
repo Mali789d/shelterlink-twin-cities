@@ -13,6 +13,7 @@ from .models import ResourceCategory, ResourceResult
 from .search import find_resources
 from .security import Verdict, WebhookSecurity
 from .sms import format_results, parse_sms, twiml
+from .webhook_form import read_sms_form
 
 app = FastAPI(
     title="ShelterLink Twin Cities",
@@ -69,7 +70,7 @@ def search_resources(
 
 @app.post("/sms")
 async def sms(request: Request) -> Response:
-    form = await request.form()
+    form = await read_sms_form(request)
     params = {key: form.getlist(key) for key in form.keys()}
     verdict = WebhookSecurity.from_env().check(
         str(request.url), params, request.headers.get("X-Twilio-Signature")
