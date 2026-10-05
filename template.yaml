@@ -61,6 +61,9 @@ Resources:
         Health:
           Type: HttpApi
           Properties: {ApiId: !Ref ShelterLinkApi, Path: /health, Method: GET}
+        Ready:
+          Type: HttpApi
+          Properties: {ApiId: !Ref ShelterLinkApi, Path: /ready, Method: GET}
         Search:
           Type: HttpApi
           Properties: {ApiId: !Ref ShelterLinkApi, Path: /resources/search, Method: GET}

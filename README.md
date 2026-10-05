@@ -131,7 +131,7 @@ the service safe to launch.
 ## AWS Lambda packaging (not deployed)
 
 `template.yaml` defines an API Gateway HTTP API and Python Lambda handler using Mangum.
-The explicit routes are `/health`, `/resources/search`, `/privacy`, `/terms`, and `/sms`.
+The explicit routes are `/health`, `/ready`, `/resources/search`, `/privacy`, `/terms`, and `/sms`.
 `tests/test_lambda.py` runs HTTP API v2 events through the handler, including signed and
 unsigned SMS. AWS SAM builds dependencies from `requirements.txt` at the `CodeUri`.
 No AWS stack or public number has been created. In production mode, sample data makes
@@ -150,6 +150,21 @@ It requires a private random salt of at least 32 characters. Never commit the sa
 it in shell history. The retained table can continue to incur costs after stack deletion:
 review account-specific pricing/free-tier eligibility and consent retention before deploy
 or cleanup. This configuration is preparation, not a claim of a free or live deployment.
+
+## Liveness versus configuration readiness
+
+`GET /health` is a process liveness check, not evidence that the service can safely
+send referrals. `GET /ready` returns 503 until offline configuration checks pass:
+production mode, a nonempty nonsample/current resource snapshot, Twilio token, trusted
+HTTPS origin, durable-consent table/salt configuration, and a nondevelopment geocoder.
+It returns only boolean checks, not secret values, table names, phone numbers or addresses,
+and uses `Cache-Control: no-store`.
+
+A 200 response means `configuration_ready`, not public-launch approval. The response
+always states `external_dependencies_verified: false`: it does not contact AWS/Twilio,
+verify resource provenance, test the phone line, or confirm the final notices/support
+route. Run those checks separately before launching. The current bundled prototype
+returns 503 for readiness even while health returns 200.
 
 ## Validated resource snapshots
 

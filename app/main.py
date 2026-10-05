@@ -1,4 +1,6 @@
+import json
 import os
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 
@@ -11,6 +13,7 @@ from .keywords import (
 from .legal import PRIVACY, TERMS, notice_page
 from .models import ResourceCategory, ResourceResult
 from .search import find_resources
+from .readiness import readiness_checks
 from .security import Verdict, WebhookSecurity
 from .sms import format_results, parse_sms, twiml
 from .webhook_form import read_sms_form
@@ -53,6 +56,22 @@ def terms():
 @app.get("/health")
 def health() -> dict[str, str | int]:
     return {"status": "ok", "resources": len(resources)}
+
+
+@app.get("/ready")
+def ready():
+    checks = readiness_checks(resources, geocoder, os.environ, datetime.now(timezone.utc))
+    # No network probes, phone numbers, resource addresses, table names or secrets.
+    return Response(
+        content=json.dumps({
+            "status": "configuration_ready" if all(checks.values()) else "not_ready",
+            "checks": checks,
+            "external_dependencies_verified": False,
+        }),
+        status_code=200 if all(checks.values()) else 503,
+        media_type="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/resources/search", response_model=list[ResourceResult])
