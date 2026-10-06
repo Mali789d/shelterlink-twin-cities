@@ -151,6 +151,23 @@ it in shell history. The retained table can continue to incur costs after stack 
 review account-specific pricing/free-tier eligibility and consent retention before deploy
 or cleanup. This configuration is preparation, not a claim of a free or live deployment.
 
+## Zero-cost directory preparation
+
+The public SMS/AWS launch is on hold under a zero-cost requirement. A browser-based
+static directory is an alternative under consideration, not an approved or published
+replacement yet. The existing SMS code remains a prototype.
+
+`python -m app.export_directory reviewed-resources.json directory.json` prepares a
+static JSON snapshot without accounts, hosting, phone-number rental or paid services.
+It rejects empty, sample, stale and future-dated input before touching the output.
+Every exported listing retains its source and verification time; hours and availability
+are deliberately excluded so the directory cannot be mistaken for a live bed feed.
+The export is directory information only, with 211/911 guidance. Validation cannot
+prove a provider was contacted: review input provenance separately. The bundled sample
+file cannot be exported. No reviewed directory, site deployment or public number exists.
+A later browser UI must recheck timestamps at view time; a successful export does not
+keep a snapshot fresh forever.
+
 ## Liveness versus configuration readiness
 
 `GET /health` is a process liveness check, not evidence that the service can safely
