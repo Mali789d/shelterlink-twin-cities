@@ -168,6 +168,15 @@ file cannot be exported. No reviewed directory, site deployment or public number
 A later browser UI must recheck timestamps at view time; a successful export does not
 keep a snapshot fresh forever.
 
+`web/directory.mjs` is a dependency-free browser-side reader for exported snapshots.
+It rechecks snapshot and listing ages at view time (24 hours), rejects future/naive dates,
+invalid coordinates, duplicates, sample records and unsafe source links, and returns only
+directory fields. Injected bed/open/hours claims are excluded. Category filtering is local:
+no requests, tracking or paid API. Run its tests with `node --test tests/test_web_directory.mjs`
+(Node 18+). This is data logic, not a published website or an approved replacement for SMS.
+A browser's clock can be wrong; later UI work must explain refresh failures, preserve safety
+help, and revalidate after long-open tabs. Source review is still required.
+
 ## Liveness versus configuration readiness
 
 `GET /health` is a process liveness check, not evidence that the service can safely
