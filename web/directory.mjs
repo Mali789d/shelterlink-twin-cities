@@ -66,3 +66,32 @@ export function filterCategory(directory, category = null) {
   if (category !== null && !CATEGORIES.has(category)) throw new Error('Unsupported category');
   return directory.resources.filter(item => category === null || item.category === category);
 }
+
+// Rank directory information locally. Coordinates are never sent to a server.
+export function nearbyResources(directory, {latitude, longitude, category = null,
+  radiusMiles = 25, limit = 10} = {}) {
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90
+      || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    throw new Error('Valid search coordinates are required');
+  }
+  if (!Number.isFinite(radiusMiles) || radiusMiles < 0) {
+    throw new Error('Search radius must be a nonnegative number');
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('Result limit must be an integer from 1 to 100');
+  }
+  const radians = degrees => degrees * Math.PI / 180;
+  const results = filterCategory(directory, category).map(resource => {
+    const latDelta = radians(resource.latitude - latitude);
+    const lonDelta = radians(resource.longitude - longitude);
+    const a = Math.sin(latDelta / 2) ** 2
+      + Math.cos(radians(latitude)) * Math.cos(radians(resource.latitude))
+      * Math.sin(lonDelta / 2) ** 2;
+    // Clamp rounding at antipodal points before taking the square root.
+    const distanceMiles = 3958.7613 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, a))));
+    return Object.freeze({resource, distanceMiles});
+  }).filter(result => result.distanceMiles <= radiusMiles);
+  results.sort((left, right) => left.distanceMiles - right.distanceMiles
+    || (left.resource.id < right.resource.id ? -1 : left.resource.id > right.resource.id ? 1 : 0));
+  return Object.freeze(results.slice(0, limit));
+}

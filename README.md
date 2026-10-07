@@ -170,10 +170,18 @@ keep a snapshot fresh forever.
 It rechecks snapshot and listing ages at view time (24 hours), rejects future/naive dates,
 invalid coordinates, duplicates, sample records and unsafe source links, and returns only
 directory fields. Injected bed/open/hours claims are excluded. Category filtering is local:
-no requests, tracking or paid API. Run its tests with `node --test tests/test_web_directory.mjs`
+no requests, tracking or paid API. Run its tests with `node --test tests/test_web_*.mjs`
 (Node 18+). This is data logic, not a published website or an approved replacement for SMS.
 A browser's clock can be wrong; later UI work must explain refresh failures, preserve safety
 help, and revalidate after long-open tabs. Source review is still required.
+
+`nearbyResources(directory, {latitude, longitude, category, radiusMiles, limit})`
+ranks a validated directory by straight-line great-circle distance, entirely on the
+client. Defaults are 25 miles and 10 results; optional category filtering happens before
+ranking. Coordinates stay local, ties use resource IDs, and no open/bed claims are added.
+Distances are not walking routes, travel times or evidence a provider can accept someone.
+The caller must read/revalidate the snapshot at the search time; do not reuse a validated
+directory indefinitely in a long-open tab. This is tested search logic, not a deployed UI.
 
 ## Liveness versus configuration readiness
 
