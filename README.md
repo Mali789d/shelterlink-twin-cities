@@ -1,8 +1,6 @@
 # ShelterLink Twin Cities
 
-An SMS-first resource finder for people experiencing homelessness in Minneapolis and Saint Paul.
-A person can text a ZIP code or location and receive nearby shelters, free meals, warming spaces,
-and showers without installing an app.
+A prototype resource finder for people experiencing homelessness in Minneapolis and Saint Paul. The SMS API and browser-directory logic are implemented for local testing; the bundled listings are samples. No public SMS number or live referral website is available.
 
 > Early development: the API and SMS response flow work with clearly labeled sample data. Live
 > provider ingestion and availability verification are next. Never rely on this service for an
