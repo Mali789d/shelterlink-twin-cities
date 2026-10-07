@@ -3,8 +3,23 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const CATEGORIES = new Set(['shelter', 'meal', 'warming', 'shower']);
 
 function timestamp(value) {
-  if (typeof value !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(value)) {
-    throw new Error('A timezone is required');
+  // Date.parse alone normalizes impossible dates (for example February 30).
+  // Accept only the timezone-bearing ISO format emitted by the exporter.
+  const match = typeof value === 'string' && value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/,
+  );
+  if (!match) throw new Error('An ISO timestamp with a timezone is required');
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, zone] = match;
+  const [year, month, day, hour, minute, second] =
+    [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+  const calendar = new Date(0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1
+      || calendar.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59) {
+    throw new Error('Invalid calendar timestamp');
+  }
+  if (zone !== 'Z' && (Number(zone.slice(1, 3)) > 23 || Number(zone.slice(4)) > 59)) {
+    throw new Error('Invalid timezone offset');
   }
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) throw new Error('Invalid timestamp');

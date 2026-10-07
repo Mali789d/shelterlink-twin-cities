@@ -167,7 +167,8 @@ A later browser UI must recheck timestamps at view time; a successful export doe
 keep a snapshot fresh forever.
 
 `web/directory.mjs` is a dependency-free browser-side reader for exported snapshots.
-It rechecks snapshot and listing ages at view time (24 hours), rejects future/naive dates,
+It rechecks snapshot and listing ages at view time (24 hours), rejects future/naive dates and impossible calendar dates (rather than letting JavaScript
+normalize February 30 or 24:00 into another day),
 invalid coordinates, duplicates, sample records and unsafe source links, and returns only
 directory fields. Injected bed/open/hours claims are excluded. Category filtering is local:
 no requests, tracking or paid API. Run its tests with `node --test tests/test_web_*.mjs`
