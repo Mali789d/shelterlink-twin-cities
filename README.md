@@ -187,6 +187,14 @@ a fresh snapshot after a refresh error. Only objects returned by `readDirectory`
 accepted, and clock rollback before the validation time is rejected. Search uses
 `Date.now()` by default; tests may inject `now` (nearby options) or the third filter argument. This is tested search logic, not a deployed UI.
 
+`web/directory-session.mjs` provides a UI-independent session controller for a later
+page. It distinguishes loading, unavailable, ready, no matches, invalid search and
+refresh-required states. Starting or failing a refresh clears old results; invalid
+replacement data never falls back to a previously successful directory. Every state
+read rechecks expiry, so a view can update after a tab sits open. Fresh replacements
+reapply local search preferences. All states retain 211/911 guidance. The controller
+performs no fetches, browser-location requests, storage or tracking; no UI/site exists.
+
 ## Liveness versus configuration readiness
 
 `GET /health` is a process liveness check, not evidence that the service can safely
