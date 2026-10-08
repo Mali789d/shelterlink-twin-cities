@@ -195,6 +195,13 @@ read rechecks expiry, so a view can update after a tab sits open. Fresh replacem
 reapply local search preferences. All states retain 211/911 guidance. The controller
 performs no fetches, browser-location requests, storage or tracking; no UI/site exists.
 
+`web/directory-loader.mjs` coordinates an injected snapshot reader with the session.
+Only the newest refresh may install data or report failure; superseded requests are
+aborted, and late responses cannot revive old results. Cancel clears results; dispose
+also prevents future reads. It adds no endpoint, credentials, retries or polling. A
+future UI supplies the actual reader and handles its timeout; abort is best-effort,
+so generation checks still protect against readers that ignore cancellation.
+
 ## Liveness versus configuration readiness
 
 `GET /health` is a process liveness check, not evidence that the service can safely
