@@ -2,14 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, nearbyResources} from '../web/directory.mjs';
 
-const now = Date.parse('2026-10-07T12:00:00Z');
+const now = Date.now();
+const time = new Date(now).toISOString();
 function directory(points = [['origin', 0, 0, 'meal'], ['east', 0, 1, 'shelter'],
   ['far', 0, 2, 'meal']]) {
-  return readDirectory({schema_version: 1, generated_at: '2026-10-07T12:00:00Z',
+  return readDirectory({schema_version: 1, generated_at: time,
     resources: points.map(([id, latitude, longitude, category]) => ({
       id, latitude, longitude, category, name: id, address: 'Test fixture only',
       source_name: 'Test fixture', source_url: 'https://example.com/',
-      verified_at: '2026-10-07T12:00:00Z',
+      verified_at: time,
     }))}, now);
 }
 const origin = {latitude: 0, longitude: 0};

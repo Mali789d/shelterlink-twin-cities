@@ -54,8 +54,8 @@ for (const mutate of [
 
 test('category filter returns only requested service', () => {
   const data = readDirectory(snapshot(), now);
-  assert.equal(filterCategory(data, 'meal').length, 1);
-  assert.equal(filterCategory(data, 'shelter').length, 0);
-  assert.equal(filterCategory(data).length, 1);
-  assert.throws(() => filterCategory(data, 'bad'));
+  assert.equal(filterCategory(data, 'meal', now).length, 1);
+  assert.equal(filterCategory(data, 'shelter', now).length, 0);
+  assert.equal(filterCategory(data, null, now).length, 1);
+  assert.throws(() => filterCategory(data, 'bad', now));
 });

@@ -1,5 +1,6 @@
 // View-time checks for static exports. No network, tracking, DOM or paid backend.
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const VALIDATED_DIRECTORIES = new WeakMap();
 const CATEGORIES = new Set(['shelter', 'meal', 'warming', 'shower']);
 
 function timestamp(value) {
@@ -71,20 +72,33 @@ export function readDirectory(snapshot, now = Date.now()) {
       verified_at: item.verified_at,
     });
   });
-  return Object.freeze({
+  const directory = Object.freeze({
     resources: Object.freeze(resources),
     notice: 'Directory information only. Call first; current local help: 211; emergency: 911.',
   });
+  VALIDATED_DIRECTORIES.set(directory, {generatedAt: snapshot.generated_at, validatedAt: now});
+  return directory;
 }
 
-export function filterCategory(directory, category = null) {
+function requireCurrentDirectory(directory, now) {
+  const metadata = VALIDATED_DIRECTORIES.get(directory);
+  if (!metadata) throw new Error('Read and validate the directory before searching');
+  if (!Number.isFinite(now) || now < metadata.validatedAt) throw new Error('Invalid search time');
+  if (!current(metadata.generatedAt, now)
+      || directory.resources.some(item => !current(item.verified_at, now))) {
+    throw new Error('Directory needs a refresh');
+  }
+}
+
+export function filterCategory(directory, category = null, now = Date.now()) {
+  requireCurrentDirectory(directory, now);
   if (category !== null && !CATEGORIES.has(category)) throw new Error('Unsupported category');
   return directory.resources.filter(item => category === null || item.category === category);
 }
 
 // Rank directory information locally. Coordinates are never sent to a server.
 export function nearbyResources(directory, {latitude, longitude, category = null,
-  radiusMiles = 25, limit = 10} = {}) {
+  radiusMiles = 25, limit = 10, now = Date.now()} = {}) {
   if (!Number.isFinite(latitude) || Math.abs(latitude) > 90
       || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
     throw new Error('Valid search coordinates are required');
@@ -96,7 +110,7 @@ export function nearbyResources(directory, {latitude, longitude, category = null
     throw new Error('Result limit must be an integer from 1 to 100');
   }
   const radians = degrees => degrees * Math.PI / 180;
-  const results = filterCategory(directory, category).map(resource => {
+  const results = filterCategory(directory, category, now).map(resource => {
     const latDelta = radians(resource.latitude - latitude);
     const lonDelta = radians(resource.longitude - longitude);
     const a = Math.sin(latDelta / 2) ** 2
