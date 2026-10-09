@@ -199,8 +199,16 @@ performs no fetches, browser-location requests, storage or tracking; no UI/site 
 Only the newest refresh may install data or report failure; superseded requests are
 aborted, and late responses cannot revive old results. Cancel clears results; dispose
 also prevents future reads. It adds no endpoint, credentials, retries or polling. A
-future UI supplies the actual reader and handles its timeout; abort is best-effort,
+future UI chooses the reader; abort is best-effort,
 so generation checks still protect against readers that ignore cancellation.
+
+`web/snapshot-reader.mjs` supplies a bounded same-origin JSON reader for later wiring.
+It omits credentials, refuses redirects, bypasses cache, requires JSON content type,
+strictly decodes UTF-8, and caps streamed bytes at 1 MiB (or a lower configured limit).
+Its default 10-second timeout settles even when a fetch or stream ignores cancellation.
+The loader turns failures into unavailable state with safety guidance. No endpoint is
+wired, no request is made merely by creating the reader, and no polling/retries, provider
+contact or website deployment is included. Reading JSON does not verify its provenance.
 
 ## Liveness versus configuration readiness
 
