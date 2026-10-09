@@ -11,11 +11,18 @@ from pathlib import Path
 
 from .data import load_resources
 from .freshness import Freshness, resource_freshness
+from .models import Resource
 
 
 def directory_snapshot(resources, at: datetime) -> dict:
     if at.tzinfo is None:
         raise ValueError("export timestamp must include a timezone")
+    # Public callers may pass model_copy/model_construct objects that bypass validation.
+    # Revalidate the complete set before examining provenance or emitting any fields.
+    resources = [Resource.model_validate(item.model_dump()) for item in resources]
+    ids = [item.id for item in resources]
+    if len(ids) != len(set(ids)):
+        raise ValueError("cannot export duplicate resource IDs")
     if not resources:
         raise ValueError("cannot export an empty directory")
     if any(item.is_sample for item in resources):
