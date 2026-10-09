@@ -71,3 +71,32 @@ def test_cli_exports_valid_reviewed_snapshot(tmp_path):
                              capture_output=True)
     assert process.returncode == 0
     assert json.loads(output.read_text())["schema_version"] == 1
+
+
+@pytest.mark.parametrize("update", [
+    {"latitude": 91}, {"longitude": -181}, {"name": "   "},
+    {"source_url": "javascript:alert(1)"}, {"verified_at": NOW.replace(tzinfo=None)},
+    {"hours": {0: [("25:00", "26:00")]}}, {"category": "invalid"},
+])
+def test_export_revalidates_models_that_bypass_constructor_validation(update):
+    item = reviewed().model_copy(update=update)
+    with pytest.raises(ValueError):
+        directory_snapshot([item], NOW)
+
+
+def test_export_rejects_duplicate_ids_even_for_direct_callers():
+    with pytest.raises(ValueError, match="duplicate"):
+        directory_snapshot([reviewed(), reviewed()], NOW)
+
+
+def test_export_rejects_ids_that_collide_after_normalization():
+    with pytest.raises(ValueError, match="duplicate"):
+        directory_snapshot([reviewed().model_copy(update={"id": "same"}),
+                            reviewed().model_copy(update={"id": " same "})], NOW)
+
+
+def test_export_accepts_generator_and_normalizes_valid_copied_fields():
+    item = reviewed().model_copy(update={"name": " Fixture only "})
+    result = directory_snapshot((value for value in [item]), NOW)
+    assert result["resources"][0]["name"] == "Fixture only"
+    assert item.name == " Fixture only "
