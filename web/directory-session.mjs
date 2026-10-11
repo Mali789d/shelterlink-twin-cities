@@ -46,10 +46,22 @@ export function createDirectorySession(clock = Date.now) {
       return getState();
     },
     search(input) {
+      // Validate even while loading/unavailable; do not queue malformed preferences
+      // that could make a later good replacement look expired.
       // Copy only supported scalar options; later caller mutation cannot change state.
       options = input && {latitude: input.latitude, longitude: input.longitude,
         category: input.category, radiusMiles: input.radiusMiles, limit: input.limit};
       if (!options) return state('invalid_search');
+      const {latitude, longitude, category, radiusMiles, limit} = options;
+      if (!Number.isFinite(latitude) || Math.abs(latitude) > 90
+          || !Number.isFinite(longitude) || Math.abs(longitude) > 180
+          || (category !== undefined && category !== null
+            && !['shelter', 'meal', 'warming', 'shower'].includes(category))
+          || (radiusMiles !== undefined && (!Number.isFinite(radiusMiles) || radiusMiles < 0))
+          || (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100))) {
+        options = null;
+        return state('invalid_search');
+      }
       if (!directory) return state(status);
       try {
         nearbyResources(directory, {...options, now: clock()});
