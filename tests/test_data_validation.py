@@ -113,3 +113,38 @@ def test_trimmed_duplicate_ids_are_rejected(tmp_path):
     second["id"] = "  " + first["id"] + "  "
     with pytest.raises(ValueError, match="duplicate IDs"):
         load_resources(snapshot(tmp_path, [first, second]))
+
+
+@pytest.mark.parametrize("field", ["source_url", "website"])
+@pytest.mark.parametrize("value", [
+    "https://user:secret@example.com/", "http://user@example.com/",
+    "https://:secret@example.com/", "https://user%40name:password@example.com/",
+])
+def test_provider_links_cannot_contain_credentials(field, value):
+    data = record()
+    data[field] = value
+    with pytest.raises(ValidationError, match="credentials"):
+        Resource.model_validate(data)
+
+
+@pytest.mark.parametrize("field", ["source_url", "website"])
+@pytest.mark.parametrize("value", [
+    "https://example.com/info?contact=user@example.com", "http://example.com/",
+])
+def test_public_provider_links_remain_supported(field, value):
+    data = record()
+    data[field] = value
+    assert str(getattr(Resource.model_validate(data), field)) == value
+
+
+def test_bad_provider_link_rejects_whole_file_before_export(tmp_path):
+    from app.export_directory import directory_snapshot
+    bad = record()
+    bad.update(id="bad-url", source_url="https://user:secret@example.com/")
+    with pytest.raises(ValidationError, match="credentials"):
+        load_resources(snapshot(tmp_path, [record(), bad]))
+    item = Resource.model_validate(record()).model_copy(update={
+        "source_url": "https://user:secret@example.com/", "is_sample": False,
+    })
+    with pytest.raises(ValidationError, match="credentials"):
+        directory_snapshot([item], item.verified_at)

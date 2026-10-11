@@ -42,6 +42,15 @@ class Resource(BaseModel):
             raise ValueError("resource text must not be blank")
         return value
 
+    @field_validator("source_url", "website")
+    @classmethod
+    def public_resource_url(cls, value: HttpUrl | None):
+        # Never publish credentials embedded in a source/provider link. Browser
+        # directory validation rejects these too; reject before exporting a file.
+        if value is not None and (value.username is not None or value.password is not None):
+            raise ValueError("resource URLs must not contain credentials")
+        return value
+
     @field_validator("hours")
     @classmethod
     def valid_weekly_hours(cls, value: dict[int, list[tuple[str, str]]]):
