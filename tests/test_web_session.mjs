@@ -98,3 +98,24 @@ test('clock failure produces refresh-required with safety guidance', () => {
   session.replaceSnapshot(snapshot()); broken = true;
   noResults(session.getState(), 'refresh_required');
 });
+
+
+for (const phase of ['unavailable', 'loading']) {
+  for (const options of [{latitude: 91, longitude: 0}, {latitude: 0, longitude: 181},
+    {latitude: 0, longitude: 0, category: 'bad'}, {latitude: 0, longitude: 0, radiusMiles: -1},
+    {latitude: 0, longitude: 0, limit: 0}, {latitude: '0', longitude: 0}]) {
+    test(`invalid preferences during ${phase} cannot poison a valid replacement: ${JSON.stringify(options)}`, () => {
+      const {session} = setup();
+      if (phase === 'loading') session.beginRefresh();
+      noResults(session.search(options), 'invalid_search');
+      noResults(session.getState(), phase);
+      noResults(session.replaceSnapshot(snapshot()), 'ready');
+      assert.equal(session.search(origin).status, 'results');
+    });
+  }
+}
+test('valid preferences queued during loading are still applied on replacement', () => {
+  const {session} = setup(); session.beginRefresh();
+  noResults(session.search({...origin, category: 'shower'}), 'loading');
+  noResults(session.replaceSnapshot(snapshot()), 'no_matches');
+});
