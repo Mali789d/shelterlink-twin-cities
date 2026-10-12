@@ -14,7 +14,7 @@ def distance_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     dlat = radians(lat2 - lat1)
     dlon = radians(lon2 - lon1)
     a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    return 2 * radius_miles * asin(sqrt(a))
+    return 2 * radius_miles * asin(sqrt(min(1.0, max(0.0, a))))
 
 
 def is_open(resource: Resource, at: datetime | None = None) -> bool:
@@ -50,15 +50,15 @@ def find_resources(
             continue
         if open_now and not opened:
             continue
-        matches.append(
+        distance = distance_miles(lat, lon, resource.latitude, resource.longitude)
+        matches.append((distance,
             ResourceResult(
                 resource=resource,
-                distance_miles=round(
-                    distance_miles(lat, lon, resource.latitude, resource.longitude), 1
-                ),
+                distance_miles=round(distance, 1),
                 open_now=opened,
                 availability=safe_availability(resource, observed_at),
                 data_freshness=fresh.value,
             )
-        )
-    return sorted(matches, key=lambda item: item.distance_miles)[:limit]
+        ))
+    # Round for display only: ranking rounded miles can hide the nearest resource.
+    return [item for _, item in sorted(matches, key=lambda pair: pair[0])[:limit]]
