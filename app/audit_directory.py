@@ -1,0 +1,48 @@
+"""Read-only review of provenance and freshness blockers, never launch approval."""
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .data import load_resources
+from .freshness import Freshness, resource_freshness
+from .models import Resource
+
+
+def audit_resources(resources, at: datetime) -> dict:
+    """Report IDs only; do not disclose contact details or change verification dates."""
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError("audit timestamp must include a timezone")
+    checked = [Resource.model_validate(item.model_dump()) for item in resources]
+    ids = [item.id for item in checked]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate resource IDs")
+    sample, stale, future = [], [], []
+    for item in checked:
+        if item.is_sample:
+            sample.append(item.id)
+        if item.verified_at > at:
+            future.append(item.id)
+        elif resource_freshness(item, at) is Freshness.STALE:
+            stale.append(item.id)
+    return {
+        "notice": "Offline review only. Not provider verification, live availability or launch approval.",
+        "as_of": at.isoformat(),
+        "resource_count": len(checked),
+        "blockers": {"empty": not checked, "sample_ids": sorted(sample),
+                     "stale_ids": sorted(stale), "future_ids": sorted(future)},
+        "export_validation_passes": bool(checked) and not (sample or stale or future),
+        "provider_verification_confirmed": False,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Audit directory blockers without writing or publishing")
+    parser.add_argument("source", type=Path)
+    args = parser.parse_args()
+    print(json.dumps(audit_resources(load_resources(args.source), datetime.now(timezone.utc)),
+                     ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
