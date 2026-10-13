@@ -39,14 +39,17 @@ class SmsQuery:
 def parse_sms(body: str) -> SmsQuery | None:
     language = parse_language(body)
     text = " ".join(strip_language_directive(body).lower().split())
-    zip_match = re.search(r"\b\d{5}\b", text)
+    zip_codes = set(re.findall(r"\b[0-9]{5}\b", text))
+    # Multiple distinct locations need clarification, not a referral for the first ZIP.
+    if len(zip_codes) > 1:
+        return None
     categories = {CATEGORY_WORDS[match.group()] for match in CATEGORY_PATTERN.finditer(text)}
     # Do not silently choose one service when the sender asked for several.
     if len(categories) > 1:
         return None
     category = next(iter(categories), None)
-    if zip_match:
-        return SmsQuery(zip_match.group(), category, language)
+    if zip_codes:
+        return SmsQuery(next(iter(zip_codes)), category, language)
     location = " ".join(CATEGORY_PATTERN.sub("", text).split()).strip(" ,")
     return SmsQuery(location, category, language) if location else None
 
