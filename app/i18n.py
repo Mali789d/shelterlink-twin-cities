@@ -58,6 +58,12 @@ MESSAGES = {
     },
 }
 
+# Every nonempty service/consent reply must retain the same reviewed safety footer.
+# Reuse existing translations rather than introduce new unreviewed wording.
+for templates in MESSAGES.values():
+    for kind in ("help", "opt_in", "unknown_location", "none"):
+        templates[kind] = templates[kind] + " " + templates["footer"]
+
 AVAILABILITY = {
     Language.ENGLISH: {"available": "available", "full": "full", "unknown": "unknown"},
     Language.SPANISH: {"available": "disponible", "full": "lleno", "unknown": "desconocida"},
