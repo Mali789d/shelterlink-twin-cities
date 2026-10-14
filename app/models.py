@@ -67,6 +67,10 @@ class Resource(BaseModel):
                     raise ValueError("hours end must be HH:MM; 24:00 is allowed")
                 if start >= end:
                     raise ValueError("hours must end after start; split overnight hours by weekday")
+            ordered = sorted(intervals)
+            if any(current[0] < previous[1]
+                   for previous, current in zip(ordered, ordered[1:])):
+                raise ValueError("hours intervals must not overlap within a weekday")
         return value
 
 
