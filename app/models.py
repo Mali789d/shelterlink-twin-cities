@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 
-from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, StrictBool, field_validator
 
 
 class ResourceCategory(str, Enum):
@@ -32,7 +32,7 @@ class Resource(BaseModel):
     source_url: HttpUrl
     verified_at: AwareDatetime
     # Missing provenance must never promote a record into the production directory.
-    is_sample: bool = True
+    is_sample: StrictBool = True
 
     @field_validator("id", "name", "address", "source_name")
     @classmethod
