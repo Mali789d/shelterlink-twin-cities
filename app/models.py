@@ -1,7 +1,7 @@
 import re
 from enum import Enum
 
-from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, StrictBool, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator
 
 
 class ResourceCategory(str, Enum):
@@ -18,6 +18,9 @@ class Availability(str, Enum):
 
 
 class Resource(BaseModel):
+    # Typos must not silently discard provider fields or provenance assertions.
+    model_config = ConfigDict(extra="forbid")
+
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     category: ResourceCategory
