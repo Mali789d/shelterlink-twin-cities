@@ -1,5 +1,5 @@
 from datetime import datetime
-from math import asin, cos, radians, sin, sqrt
+from math import asin, cos, isfinite, radians, sin, sqrt
 from zoneinfo import ZoneInfo
 
 from .freshness import Freshness, resource_freshness, safe_availability
@@ -34,7 +34,10 @@ def find_resources(
     open_now: bool = False,
     limit: int = 3,
     at: datetime | None = None,
+    radius_miles: float | None = None,
 ) -> list[ResourceResult]:
+    if radius_miles is not None and (not isfinite(radius_miles) or radius_miles < 0):
+        raise ValueError("radius must be finite and nonnegative")
     observed_at = at or datetime.now(TWIN_CITIES_TZ)
     matches = []
     for resource in resources:
@@ -51,6 +54,8 @@ def find_resources(
         if open_now and not opened:
             continue
         distance = distance_miles(lat, lon, resource.latitude, resource.longitude)
+        if radius_miles is not None and distance > radius_miles:
+            continue
         matches.append((distance,
             ResourceResult(
                 resource=resource,
