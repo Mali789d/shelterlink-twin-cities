@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 from .models import Availability, Resource
@@ -18,9 +18,10 @@ def resource_freshness(
 ) -> Freshness:
     """Classify source data by age without guessing that old data is current."""
     verified_at = resource.verified_at
-    if verified_at.tzinfo is None or at.tzinfo is None:
+    if verified_at.utcoffset() is None or at.utcoffset() is None:
         raise ValueError("freshness timestamps must include a timezone")
-    age = at - verified_at
+    # Same-zone datetime subtraction uses wall time across DST. Freshness is elapsed time.
+    age = at.astimezone(timezone.utc) - verified_at.astimezone(timezone.utc)
     return Freshness.CURRENT if timedelta(0) <= age <= max_age else Freshness.STALE
 
 
