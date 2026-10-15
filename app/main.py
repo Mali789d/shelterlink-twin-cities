@@ -81,10 +81,11 @@ def search_resources(
     category: ResourceCategory | None = None,
     open_now: bool = False,
     limit: int = Query(default=3, ge=1, le=10),
+    radius_miles: float | None = Query(default=None, ge=0, allow_inf_nan=False),
 ) -> list[ResourceResult]:
     if prototype_data_only():
         raise HTTPException(status_code=503, detail="Verified resource data is not available")
-    return find_resources(resources, lat, lon, category, open_now, limit)
+    return find_resources(resources, lat, lon, category, open_now, limit, radius_miles=radius_miles)
 
 
 @app.post("/sms")
