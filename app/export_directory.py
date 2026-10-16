@@ -46,24 +46,32 @@ def directory_snapshot(resources, at: datetime) -> dict:
     }
 
 
+def export_file(source: Path, output: Path) -> None:
+    source, output = Path(source), Path(output)
+    # An export omits operator-only fields. Never replace its own source snapshot,
+    # even through relative paths, symlinks or an existing hard-link alias.
+    if source.resolve() == output.resolve() or (output.exists() and source.samefile(output)):
+        raise ValueError("export output must not replace the source snapshot")
+    snapshot = directory_snapshot(load_resources(source), datetime.now(timezone.utc))
+    text = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent,
+                                         delete=False) as file:
+            temporary = Path(file.name)
+            file.write(text)
+        os.replace(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Validate and export a static directory (not publish it)")
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    # Complete validation before touching output, so failed refreshes cannot truncate it.
-    snapshot = directory_snapshot(load_resources(args.source), datetime.now(timezone.utc))
-    text = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=args.output.parent,
-                                         delete=False) as file:
-            temporary = Path(file.name)
-            file.write(text)
-        os.replace(temporary, args.output)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    export_file(args.source, args.output)
 
 
 if __name__ == "__main__":
