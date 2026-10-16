@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .data import load_resources
-from .freshness import Freshness, resource_freshness
+from .freshness import DEFAULT_MAX_AGE, Freshness, resource_freshness
 from .models import Resource
 
 
@@ -25,13 +25,21 @@ def audit_resources(resources, at: datetime) -> dict:
             future.append(item.id)
         elif resource_freshness(item, at) is Freshness.STALE:
             stale.append(item.id)
+    passes = bool(checked) and not (sample or stale or future)
+    # A fresh snapshot is only valid until its oldest record reaches the age limit.
+    # Use UTC before adding the duration so a DST change cannot extend the window.
+    deadline = min((item.verified_at.astimezone(timezone.utc) + DEFAULT_MAX_AGE
+                    for item in checked), default=None) if passes else None
     return {
+        "freshness_deadline": deadline.isoformat() if deadline else None,
+        "freshness_seconds_remaining": (deadline - at.astimezone(timezone.utc)).total_seconds()
+            if deadline else None,
         "notice": "Offline review only. Not provider verification, live availability or launch approval.",
         "as_of": at.isoformat(),
         "resource_count": len(checked),
         "blockers": {"empty": not checked, "sample_ids": sorted(sample),
                      "stale_ids": sorted(stale), "future_ids": sorted(future)},
-        "export_validation_passes": bool(checked) and not (sample or stale or future),
+        "export_validation_passes": passes,
         "provider_verification_confirmed": False,
     }
 
