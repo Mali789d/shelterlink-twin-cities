@@ -37,6 +37,16 @@ class Resource(BaseModel):
     # Missing provenance must never promote a record into the production directory.
     is_sample: StrictBool = True
 
+    @field_validator("id", "name", "address", "source_name", "phone")
+    @classmethod
+    def safe_display_text(cls, value: str | None):
+        # Provider text is embedded in SMS/XML and review reports. Keep it one line
+        # and reject invisible controls rather than silently repairing source data.
+        if value is not None and any(ord(char) < 32 or 127 <= ord(char) <= 159
+                                     or char in "\u2028\u2029" for char in value):
+            raise ValueError("resource text must not contain control characters or line breaks")
+        return value
+
     @field_validator("id", "name", "address", "source_name")
     @classmethod
     def nonblank_text(cls, value: str) -> str:
