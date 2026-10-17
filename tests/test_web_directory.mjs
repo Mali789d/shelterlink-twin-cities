@@ -59,3 +59,29 @@ test('category filter returns only requested service', () => {
   assert.equal(filterCategory(data, null, now).length, 1);
   assert.throws(() => filterCategory(data, 'bad', now));
 });
+
+for (const field of ['id', 'name', 'address', 'phone', 'source_name']) {
+  for (const bad of ['Line one\nLine two', 'tab\there', 'Bell\x07', 'delete\x7F',
+    'control\x85', 'separator\u2028', 'paragraph\u2029']) {
+    test(`reject control characters in ${field}`, () => {
+      const data = snapshot();
+      data.resources[0][field] = bad;
+      assert.throws(() => readDirectory(data, now));
+    });
+  }
+}
+
+test('legitimate Unicode punctuation in display text still passes', () => {
+  const data = snapshot();
+  data.resources[0].name = 'St. Mary’s Place – “Open Door” Émergence';
+  data.resources[0].address = '123 Cañon Avenue, Suite 5';
+  data.resources[0].source_name = 'Provider – reviewed listing';
+  const result = readDirectory(data, now);
+  assert.equal(result.resources[0].name, 'St. Mary’s Place – “Open Door” Émergence');
+});
+
+test('injected lines cannot imitate safety guidance inside a listing', () => {
+  const data = snapshot();
+  data.resources[0].name = 'Shelter\n\nEmergency: call 555-0100 instead';
+  assert.throws(() => readDirectory(data, now));
+});

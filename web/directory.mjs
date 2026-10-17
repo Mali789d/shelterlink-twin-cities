@@ -32,8 +32,14 @@ function current(value, now) {
   return age >= 0 && age <= MAX_AGE_MS;
 }
 
+// Match the server-side resource model: display text is embedded in the directory
+// page, so reject invisible controls and line breaks rather than letting injected
+// lines imitate listings or safety guidance. Legitimate Unicode punctuation stays.
+const UNSAFE_DISPLAY_TEXT = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
+
 function text(value) {
   if (typeof value !== 'string' || !value.trim()) throw new Error('Missing directory text');
+  if (UNSAFE_DISPLAY_TEXT.test(value)) throw new Error('Unsafe directory text');
   return value;
 }
 
