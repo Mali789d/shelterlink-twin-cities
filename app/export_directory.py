@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .data import load_resources
+from .data import MAX_SNAPSHOT_BYTES, load_resources
 from .freshness import Freshness, resource_freshness
 from .models import Resource
 
@@ -54,6 +54,10 @@ def export_file(source: Path, output: Path) -> None:
         raise ValueError("export output must not replace the source snapshot")
     snapshot = directory_snapshot(load_resources(source), datetime.now(timezone.utc))
     text = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
+    # The browser reader enforces the same byte cap. Pretty-printing can expand
+    # a valid compact source, so validate serialized UTF-8 bytes before writes.
+    if len(text.encode("utf-8")) > MAX_SNAPSHOT_BYTES:
+        raise ValueError("export exceeds directory byte limit")
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent,
