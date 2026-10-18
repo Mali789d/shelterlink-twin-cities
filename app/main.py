@@ -29,7 +29,7 @@ opt_outs = InMemoryOptOutStore()
 
 
 def get_opt_out_store() -> OptOutStore:
-    if os.environ.get("SHELTERLINK_ENV", "").lower() != "production":
+    if os.environ.get("SHELTERLINK_ENV", "").strip().lower() != "production":
         return opt_outs
     return durable_opt_out_store(
         os.environ.get("OPT_OUT_TABLE", ""), os.environ.get("OPT_OUT_HASH_SALT", ""),
@@ -38,7 +38,7 @@ def get_opt_out_store() -> OptOutStore:
 
 def prototype_data_only() -> bool:
     """Production may not expose fixtures as a real nearby-resource directory."""
-    return os.environ.get("SHELTERLINK_ENV", "").lower() == "production" and (
+    return os.environ.get("SHELTERLINK_ENV", "").strip().lower() == "production" and (
         not resources or any(item.is_sample for item in resources)
     )
 

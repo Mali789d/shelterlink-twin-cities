@@ -21,7 +21,7 @@ def readiness_checks(resources: list[Resource], geocoder, env, at: datetime) -> 
     except (ValueError, TypeError, AttributeError):
         verified = current = False
     return {
-        "production_mode": env.get("SHELTERLINK_ENV", "").lower() == "production",
+        "production_mode": env.get("SHELTERLINK_ENV", "").strip().lower() == "production",
         "verified_resource_snapshot": verified,
         "current_resource_snapshot": current,
         "twilio_token_configured": bool(security.auth_token),

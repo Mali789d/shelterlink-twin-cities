@@ -104,11 +104,13 @@ class WebhookSecurity:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "WebhookSecurity":
+        # Normalize before evaluation: pasted whitespace must not silently disable
+        # production safeguards or masquerade as a configured token/origin.
         env = os.environ if env is None else env
         return cls(
-            auth_token=env.get("TWILIO_AUTH_TOKEN") or None,
-            public_base_url=(env.get("PUBLIC_BASE_URL") or "").rstrip("/") or None,
-            production=env.get("SHELTERLINK_ENV", "").lower() == "production",
+            auth_token=env.get("TWILIO_AUTH_TOKEN", "").strip() or None,
+            public_base_url=env.get("PUBLIC_BASE_URL", "").strip().rstrip("/") or None,
+            production=env.get("SHELTERLINK_ENV", "").strip().lower() == "production",
         )
 
     def signed_url(self, request_url: str) -> str:
