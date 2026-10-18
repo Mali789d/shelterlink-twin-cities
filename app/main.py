@@ -12,7 +12,7 @@ from .keywords import (
 )
 from .legal import PRIVACY, TERMS, notice_page
 from .models import ResourceCategory, ResourceResult
-from .search import find_resources
+from .search import find_resources, validate_coordinates
 from .readiness import readiness_checks
 from .security import Verdict, WebhookSecurity
 from .sms import format_results, parse_sms, twiml
@@ -130,7 +130,15 @@ async def sms(request: Request) -> Response:
     if not query:
         message = MESSAGES[language]["help"]
     else:
-        coordinates = geocoder.geocode(query.location)
+        try:
+            coordinates = geocoder.geocode(query.location)
+            if coordinates is not None:
+                validate_coordinates(*coordinates)
+        except Exception:
+            # A geocoder outage or malformed result must not become a webhook 500:
+            # Twilio retries 5xx and the sender receives no guidance at all.
+            # Do not log exceptions here: provider errors can contain request data.
+            coordinates = None
         if not coordinates:
             message = MESSAGES[query.language]["unknown_location"]
         else:
