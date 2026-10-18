@@ -55,6 +55,18 @@ class Resource(BaseModel):
             raise ValueError("resource text must not be blank")
         return value
 
+    @field_validator("phone")
+    @classmethod
+    def dialable_phone(cls, value: str | None):
+        # The phone goes verbatim into SMS replies. Reject prose and data-entry
+        # errors rather than send someone a number that cannot be dialed. Short
+        # service codes (211) and one optional extension remain supported.
+        if value is None:
+            return value
+        if not re.fullmatch(r"\+?\(?[0-9][0-9().\- ]{1,27}[0-9](?: ?(?:x|ext\.?) ?[0-9]{1,6})?", value):
+            raise ValueError("phone must be a dialable number, not text")
+        return value
+
     @field_validator("source_url", "website")
     @classmethod
     def public_resource_url(cls, value: HttpUrl | None):
