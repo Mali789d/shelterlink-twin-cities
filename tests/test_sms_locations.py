@@ -36,3 +36,28 @@ def test_ambiguous_location_never_calls_geocoder(monkeypatch):
 @pytest.mark.parametrize("text", ["meal 55415", "shower saint paul", "warming minneapolis"])
 def test_existing_single_location_requests_remain_supported(text):
     assert parse_sms(text) is not None
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("shelter in minneapolis", "minneapolis"),
+    ("food near saint paul", "saint paul"),
+    ("shelter around minneapolis", "minneapolis"),
+    ("shower at minneapolis", "minneapolis"),
+    ("meal by minneapolis", "minneapolis"),
+    ("in minneapolis", "minneapolis"),
+])
+def test_leading_preposition_drops_before_named_location(text, expected):
+    query = parse_sms(text)
+    assert query is not None
+    assert query.location == expected
+
+
+def test_place_name_starting_with_preposition_letters_is_untouched():
+    query = parse_sms("shelter inver grove heights")
+    assert query is not None
+    assert query.location == "inver grove heights"
+
+
+@pytest.mark.parametrize("text", ["shelter in", "in", "food near"])
+def test_trailing_preposition_alone_asks_for_a_location(text):
+    assert parse_sms(text) is None
