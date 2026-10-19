@@ -85,3 +85,32 @@ test('injected lines cannot imitate safety guidance inside a listing', () => {
   data.resources[0].name = 'Shelter\n\nEmergency: call 555-0100 instead';
   assert.throws(() => readDirectory(data, now));
 });
+
+// The reader enforces the same dialable-phone rule as the server-side model:
+// the number renders next to 'call first' guidance, so prose cannot pass.
+for (const good of ['211', '911', '+1 (612) 555-0100', '612-555-0100', '(612) 555-0100',
+  '+16125550100', '612 555 0100', '612.555.0100', '612-555-0100 x123',
+  '612-555-0100 ext. 42', '612-555-0100 ext42', '1-800-555-0100', '+1(612)555-0100']) {
+  test(`accept dialable phone ${good}`, () => {
+    const data = snapshot();
+    data.resources[0].phone = good;
+    assert.equal(readDirectory(data, now).resources[0].phone, good);
+  });
+}
+
+for (const bad of ['call the front desk', 'abc', '612-CALL-NOW', '911 or 211',
+  '612 555 0100 or 612 555 0101', '5', '55', '+', '()12 3', '612-555-0100 x1234567',
+  '1234567890123456789012345678901', '612-555-0100 x', '555-0100.',
+  ' 612-555-0100', '612-555-0100 ']) {
+  test(`reject non-dialable phone ${JSON.stringify(bad)}`, () => {
+    const data = snapshot();
+    data.resources[0].phone = bad;
+    assert.throws(() => readDirectory(data, now));
+  });
+}
+
+test('a missing phone stays missing', () => {
+  const data = snapshot();
+  data.resources[0].phone = null;
+  assert.equal(readDirectory(data, now).resources[0].phone, null);
+});

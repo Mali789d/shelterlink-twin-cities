@@ -37,10 +37,21 @@ function current(value, now) {
 // lines imitate listings or safety guidance. Legitimate Unicode punctuation stays.
 const UNSAFE_DISPLAY_TEXT = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
 
+// Match the server-side resource model exactly: the phone is rendered next to
+// 'call first' guidance, so reject prose or data-entry errors rather than show a
+// number nobody can dial. Short service codes (211) and one extension stay valid.
+const DIALABLE_PHONE = /^\+?\(?[0-9][0-9().\- ]{1,27}[0-9](?: ?(?:x|ext\.?) ?[0-9]{1,6})?$/;
+
 function text(value) {
   if (typeof value !== 'string' || !value.trim()) throw new Error('Missing directory text');
   if (UNSAFE_DISPLAY_TEXT.test(value)) throw new Error('Unsafe directory text');
   return value;
+}
+
+function dialablePhone(value) {
+  const phone = text(value);
+  if (!DIALABLE_PHONE.test(phone)) throw new Error('Phone must be a dialable number');
+  return phone;
 }
 
 function safeUrl(value) {
@@ -72,7 +83,7 @@ export function readDirectory(snapshot, now = Date.now()) {
     return Object.freeze({
       id, name: text(item.name), category: item.category, address: text(item.address),
       latitude: item.latitude, longitude: item.longitude,
-      phone: item.phone == null ? null : text(item.phone),
+      phone: item.phone == null ? null : dialablePhone(item.phone),
       website: item.website == null ? null : safeUrl(item.website),
       source_name: text(item.source_name), source_url: safeUrl(item.source_url),
       verified_at: item.verified_at,
