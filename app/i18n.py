@@ -19,6 +19,13 @@ ALIASES = {
     "af-soomaali": Language.SOMALI,
 }
 
+# Two-letter codes only count right after "lang": "so" and "es" are ordinary
+# English words, and a bare code must not hijack the reply language. Whole
+# language names ("somali", "spanish", "español", ...) stay valid on their own.
+_DIRECTIVE_CODES = {"en", "es", "so"}
+WORD_ALIASES = {key: language for key, language in ALIASES.items()
+                if key not in _DIRECTIVE_CODES}
+
 MESSAGES = {
     Language.ENGLISH: {
         "help": "Text a Twin Cities ZIP or location, optionally with shelter, meal, warming, or shower. Add 'lang es' for Spanish or 'lang so' for Somali. ShelterLink Twin Cities. Msg&data rates may apply. Reply STOP to opt out.",
@@ -76,8 +83,8 @@ def parse_language(text: str) -> Language:
     for index, token in enumerate(tokens):
         if token == "lang" and index + 1 < len(tokens):
             return ALIASES.get(tokens[index + 1], Language.ENGLISH)
-        if token in ALIASES:
-            return ALIASES[token]
+        if token in WORD_ALIASES:
+            return WORD_ALIASES[token]
     return Language.ENGLISH
 
 
@@ -93,7 +100,7 @@ def strip_language_directive(text: str) -> str:
         if normalized == "lang" and index + 1 < len(tokens):
             skip_next = True
             continue
-        if normalized in ALIASES:
+        if normalized in WORD_ALIASES:
             continue
         cleaned.append(token)
     return " ".join(cleaned)
