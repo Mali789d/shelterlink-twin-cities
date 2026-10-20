@@ -70,3 +70,19 @@ def test_help_still_answers_after_opt_out():
 def test_spanish_and_somali_help_include_opt_out():
     assert "Responde STOP" in sms("AYUDA").text
     assert "Ku jawaab STOP" in sms("caawimo").text
+
+
+@pytest.mark.parametrize("body", ["ALTO", "alto", " Alto. "])
+def test_spanish_carrier_opt_out_word(body):
+    assert classify_keyword(body) == (Keyword.OPT_OUT, Language.ENGLISH)
+
+
+def test_alto_silences_later_replies_for_that_number():
+    assert sms("ALTO", sender="+16125550211").text == EMPTY
+    assert sms("55415 shelter", sender="+16125550211").text == EMPTY
+    assert "Nearest resources" in sms("55415 shelter", sender="+16125550199").text
+
+
+def test_alto_inside_a_search_is_not_an_opt_out():
+    # Whole-message rule: "alto" only opts out when it is the entire message.
+    assert classify_keyword("alto 55415") is None

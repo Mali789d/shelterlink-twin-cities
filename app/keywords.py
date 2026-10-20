@@ -19,9 +19,12 @@ from typing import Protocol
 
 from .i18n import Language
 
+# "alto" is the carrier-standard Spanish opt-out (US Spanish campaigns honor
+# STOP, UNSUBSCRIBE, END, QUIT, CANCEL, AYUDA and ALTO); a Spanish speaker who
+# texts ALTO must actually stop receiving replies. "ayuda" stays a HELP keyword.
 OPT_OUT_WORDS = {
     "stop", "stopall", "unsubscribe", "cancel", "end", "quit", "revoke", "optout",
-    "parar", "jooji",
+    "parar", "jooji", "alto",
 }
 OPT_IN_WORDS = {"start", "unstop", "yes"}
 HELP_WORDS = {
