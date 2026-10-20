@@ -155,6 +155,15 @@ The public SMS/AWS launch is on hold under a zero-cost requirement. A browser-ba
 static directory is an alternative under consideration, not an approved or published
 replacement yet. The existing SMS code remains a prototype.
 
+`python -m app.ingest raw-export.json field-mapping.json candidate.json` turns a
+provider's raw JSON export into a validated candidate snapshot. The mapping file is an
+explicit object of resource field to provider field; a typo like `addres` fails loudly
+instead of silently dropping data. Each record validates on its own, so one dirty row
+rejects itself with a reason instead of failing the batch, duplicate IDs reject the
+later record, and `is_sample` stays on unless a record asserts it with a real boolean.
+The candidate is review input only - audit, compare and export treat it like any other
+snapshot, and ingestion is not provider verification.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
