@@ -164,6 +164,14 @@ later record, and `is_sample` stays on unless a record asserts it with a real bo
 The candidate is review input only - audit, compare and export treat it like any other
 snapshot, and ingestion is not provider verification.
 
+`python -m app.history append reviewed-resources.json history.jsonl --note "..."` records
+a reviewed snapshot in an append-only change history. Each record hashes the snapshot and
+links to the previous record, so an edited or reordered earlier entry fails
+`python -m app.history verify history.jsonl reviewed-resources.json` at a named line.
+Appends refuse unexplained notes and no-change snapshots; a local chain cannot prove the
+latest record alone, so verification also anchors it against the current snapshot. The
+history records operator review events only - not provider verification or publication.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
