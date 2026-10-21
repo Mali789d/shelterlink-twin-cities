@@ -71,7 +71,9 @@ language; service vocabulary alone does not select it.
 Only whole words/phrases select a category, so a place like Bedford does not mean
 `bed`. If a message includes multiple different service categories, the webhook returns
 HELP instead of silently picking one. Send one service per search. Named locations still
-use the small development geocoder, not a live geocoding service.
+use the development geocoder, not a live geocoding service. It resolves every Minneapolis
+(554xx) and Saint Paul (551xx) ZIP to an approximate centroid - never an exact address -
+from public 2013 government ZIP reference data, plus the two city names.
 
 ## Webhook security
 
