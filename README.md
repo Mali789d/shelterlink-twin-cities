@@ -180,6 +180,14 @@ every skip. Merging changes no record - each keeps its own provenance and sample
 and the merged output remains review input for audit, history and export, not a verified
 or published directory.
 
+`python -m app.duplicates reviewed-resources.json` flags possible duplicate records
+for human review. Exact-ID deduplication in merge.py cannot catch provider exports that
+list the same site twice under different formatting, so this flags pairs sharing a
+normalized phone, a punctuation-insensitive name, or coordinates inside one building.
+The flags are deterministic review hints only - they never merge records, never pick a
+winner, catch formatting drift rather than naming variants, and report record IDs and
+rules only, so no contact details leave the snapshot.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
