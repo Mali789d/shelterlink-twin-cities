@@ -172,6 +172,14 @@ Appends refuse unexplained notes and no-change snapshots; a local chain cannot p
 latest record alone, so verification also anchors it against the current snapshot. The
 history records operator review events only - not provider verification or publication.
 
+`python -m app.merge base.json candidate.json merged.json` applies a reviewed candidate
+to a base snapshot. Duplicate IDs reject loudly by default so a provider re-export cannot
+silently duplicate or overwrite entries; `--on-conflict replace` applies candidate records
+and lists every replaced ID, and `--on-conflict keep` retains the base records and lists
+every skip. Merging changes no record - each keeps its own provenance and sample flag -
+and the merged output remains review input for audit, history and export, not a verified
+or published directory.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
