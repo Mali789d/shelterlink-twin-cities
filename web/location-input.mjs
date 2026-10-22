@@ -16,3 +16,18 @@ export function parseCoordinates(input) {
   }
   return Object.freeze({latitude, longitude});
 }
+
+import {lookupPlace} from './zip-lookup.mjs';
+
+// Manual coordinates or a known Twin Cities ZIP/city - never a guess. Anything
+// ambiguous (a partial address, an unmapped place name) is rejected so the page
+// asks again instead of silently searching the wrong area.
+export function parseLocation(input) {
+  try {
+    return parseCoordinates(input);
+  } catch {
+    const place = lookupPlace(input);
+    if (place) return place;
+    throw new Error('Enter latitude, longitude, or a Minneapolis/Saint Paul ZIP');
+  }
+}

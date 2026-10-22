@@ -245,6 +245,16 @@ The loader turns failures into unavailable state with safety guidance. No endpoi
 wired, no request is made merely by creating the reader, and no polling/retries, provider
 contact or website deployment is included. Reading JSON does not verify its provenance.
 
+`web/location-input.mjs` turns typed text into search coordinates for a later page.
+`parseCoordinates` accepts only explicit decimal latitude,longitude and rejects
+ambiguous strings rather than guessing. `parseLocation` additionally resolves a known
+Minneapolis/Saint Paul ZIP or city name through `web/zip-lookup.mjs`, an offline map
+of the same 83 public-data ZIP centroids as the Python development geocoder (a parity
+test keeps the two identical). A ZIP resolves to its approximate centroid, never an
+exact address; unknown places, partial addresses and unmapped ZIPs are rejected so the
+page asks again instead of silently searching the wrong area. No network, GPS request
+or storage is involved.
+
 ## Liveness versus configuration readiness
 
 `GET /health` is a process liveness check, not evidence that the service can safely
