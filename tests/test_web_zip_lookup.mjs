@@ -4,13 +4,13 @@ import {CITY_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs'
 import {parseCoordinates, parseLocation} from '../web/location-input.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
-test('every core-city ZIP resolves to a frozen centroid inside the Twin Cities', () => {
-  assert.equal(Object.keys(ZIP_CENTROIDS).length, 83);
+test('every metro ZIP resolves to a frozen centroid inside the Twin Cities', () => {
+  assert.equal(Object.keys(ZIP_CENTROIDS).length, 103);
   for (const [zip, place] of Object.entries(ZIP_CENTROIDS)) {
-    assert.match(zip, /^55[14]\d{2}$/);
+    assert.match(zip, /^55[134]\d{2}$/);
     assert.ok(Object.isFrozen(place));
     assert.ok(place.latitude > 44.70 && place.latitude < 45.25, zip);
-    assert.ok(place.longitude > -93.60 && place.longitude < -92.85, zip);
+    assert.ok(place.longitude > -93.75 && place.longitude < -92.85, zip);
     assert.deepEqual(lookupPlace(zip), place);
   }
 });

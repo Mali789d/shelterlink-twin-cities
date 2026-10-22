@@ -1,19 +1,19 @@
-"""The development geocoder covers Twin Cities ZIPs with sane centroids."""
+"""The development geocoder covers Twin Cities metro ZIPs with sane centroids."""
 import re
 
 from app.geocoding import DevelopmentGeocoder
 from app.search import validate_coordinates
 from app.zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
 
-# Loose box around the two core cities; a centroid outside it is a data error.
-TWIN_CITIES_BOX = (44.70, 45.25, -93.60, -92.85)
+# Loose box around the Twin Cities metro; a centroid outside it is a data error.
+TWIN_CITIES_BOX = (44.70, 45.25, -93.75, -92.85)
 
 
 def test_every_core_city_zip_resolves_to_a_valid_centroid():
     geocoder = DevelopmentGeocoder()
-    assert len(TWIN_CITIES_ZIP_CENTROIDS) == 83
+    assert len(TWIN_CITIES_ZIP_CENTROIDS) == 103
     for zip_code, (latitude, longitude) in TWIN_CITIES_ZIP_CENTROIDS.items():
-        assert re.fullmatch(r"55[14]\d{2}", zip_code)
+        assert re.fullmatch(r"55[134]\d{2}", zip_code)
         validate_coordinates(latitude, longitude)
         lat_min, lat_max, lng_min, lng_max = TWIN_CITIES_BOX
         assert lat_min <= latitude <= lat_max, zip_code

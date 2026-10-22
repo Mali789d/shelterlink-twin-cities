@@ -1,7 +1,9 @@
 // Offline centroid lookup for the static directory page. No network, GPS or storage.
 // ZIPs resolve to approximate centroids from the same public 2013 government ZIP
-// reference data as app/zip_centroids.py - never to an exact address. Keep this
-// map in sync with the Python module; tests/test_zip_lookup_parity.py enforces it.
+// reference data as app/zip_centroids.py, with the same Hennepin/Ramsey county
+// coverage plus metro-adjacent 554xx/551xx ZIPs - never to an exact address.
+// Keep this map in sync with the Python module; tests/test_zip_lookup_parity.py
+// enforces it.
 
 export const ZIP_CENTROIDS = Object.freeze({
   '55101': Object.freeze({latitude: 44.951483, longitude: -93.090649}),
@@ -36,6 +38,26 @@ export const ZIP_CENTROIDS = Object.freeze({
   '55130': Object.freeze({latitude: 44.973302, longitude: -93.082410}),
   '55150': Object.freeze({latitude: 44.886640, longitude: -93.165422}),
   '55155': Object.freeze({latitude: 44.956026, longitude: -93.082680}),
+  '55305': Object.freeze({latitude: 44.956374, longitude: -93.427997}),
+  '55311': Object.freeze({latitude: 45.106403, longitude: -93.497029}),
+  '55316': Object.freeze({latitude: 45.172932, longitude: -93.386829}),
+  '55327': Object.freeze({latitude: 45.195735, longitude: -93.475802}),
+  '55331': Object.freeze({latitude: 44.895664, longitude: -93.607649}),
+  '55340': Object.freeze({latitude: 45.078263, longitude: -93.572118}),
+  '55343': Object.freeze({latitude: 44.914372, longitude: -93.416254}),
+  '55344': Object.freeze({latitude: 44.863838, longitude: -93.430008}),
+  '55345': Object.freeze({latitude: 44.915442, longitude: -93.484430}),
+  '55346': Object.freeze({latitude: 44.880805, longitude: -93.482008}),
+  '55347': Object.freeze({latitude: 44.827922, longitude: -93.462312}),
+  '55356': Object.freeze({latitude: 44.994245, longitude: -93.589620}),
+  '55357': Object.freeze({latitude: 45.103722, longitude: -93.674218}),
+  '55359': Object.freeze({latitude: 45.009760, longitude: -93.698110}),
+  '55364': Object.freeze({latitude: 44.936989, longitude: -93.677783}),
+  '55369': Object.freeze({latitude: 45.127446, longitude: -93.445399}),
+  '55374': Object.freeze({latitude: 45.175548, longitude: -93.575531}),
+  '55375': Object.freeze({latitude: 44.908107, longitude: -93.721559}),
+  '55384': Object.freeze({latitude: 44.937621, longitude: -93.635153}),
+  '55391': Object.freeze({latitude: 44.956401, longitude: -93.538993}),
   '55401': Object.freeze({latitude: 44.984577, longitude: -93.269097}),
   '55402': Object.freeze({latitude: 44.976039, longitude: -93.271444}),
   '55403': Object.freeze({latitude: 44.970570, longitude: -93.284044}),

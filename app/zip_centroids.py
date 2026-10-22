@@ -1,9 +1,12 @@
-"""ZIP centroids for the development geocoder - Minneapolis and Saint Paul only.
+"""ZIP centroids for the development geocoder - Twin Cities metro only.
 
 Approximate centroids from the 2013 US government ZIP code latitude/longitude
 file (public ZIP reference data, mirrored in the widely used CivicSpace-derived
-CSV). A ZIP resolves to its centroid, never to an exact address, and this map
-stays development-only: a real geocoder replaces it before any launch.
+CSV). Coverage is every ZIP assigned to Hennepin or Ramsey county in the
+Census-based state/county/ZIP reference (scpike/us-state-county-zip), plus the
+metro-adjacent 554xx/551xx ZIPs already served before that county grounding.
+A ZIP resolves to its centroid, never to an exact address, and this map stays
+development-only: a real geocoder replaces it before any launch.
 """
 
 TWIN_CITIES_ZIP_CENTROIDS: dict[str, tuple[float, float]] = {
@@ -39,6 +42,26 @@ TWIN_CITIES_ZIP_CENTROIDS: dict[str, tuple[float, float]] = {
     "55130": (44.973302, -93.082410),
     "55150": (44.886640, -93.165422),
     "55155": (44.956026, -93.082680),
+    "55305": (44.956374, -93.427997),
+    "55311": (45.106403, -93.497029),
+    "55316": (45.172932, -93.386829),
+    "55327": (45.195735, -93.475802),
+    "55331": (44.895664, -93.607649),
+    "55340": (45.078263, -93.572118),
+    "55343": (44.914372, -93.416254),
+    "55344": (44.863838, -93.430008),
+    "55345": (44.915442, -93.484430),
+    "55346": (44.880805, -93.482008),
+    "55347": (44.827922, -93.462312),
+    "55356": (44.994245, -93.589620),
+    "55357": (45.103722, -93.674218),
+    "55359": (45.009760, -93.698110),
+    "55364": (44.936989, -93.677783),
+    "55369": (45.127446, -93.445399),
+    "55374": (45.175548, -93.575531),
+    "55375": (44.908107, -93.721559),
+    "55384": (44.937621, -93.635153),
+    "55391": (44.956401, -93.538993),
     "55401": (44.984577, -93.269097),
     "55402": (44.976039, -93.271444),
     "55403": (44.970570, -93.284044),

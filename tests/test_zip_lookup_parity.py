@@ -28,7 +28,7 @@ def javascript_maps():
 
 def test_zip_centroids_match_exactly():
     js_zips = javascript_maps()["zips"]
-    assert len(js_zips) == len(TWIN_CITIES_ZIP_CENTROIDS) == 83
+    assert len(js_zips) == len(TWIN_CITIES_ZIP_CENTROIDS) == 103
     for zip_code, (latitude, longitude) in TWIN_CITIES_ZIP_CENTROIDS.items():
         place = js_zips[zip_code]
         assert place["latitude"] == pytest.approx(latitude, abs=1e-9), zip_code
