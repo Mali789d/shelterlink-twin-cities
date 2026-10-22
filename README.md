@@ -52,6 +52,12 @@ pytest -q
 
 ```bash
 curl 'http://localhost:8000/resources/search?lat=44.9778&lon=-93.2650&category=shelter'
+curl 'http://localhost:8000/resources/search?location=55415&category=shelter'
+
+Search takes exactly one coordinate source: an explicit `lat`/`lon` pair or a `location`
+place string resolved through the same geocoder as SMS. Passing both, half a pair, a
+blank value or an unknown place is a 400 - the API never guesses a search point. A
+broken geocoder answer (out-of-range or an exception) is a 503, not a search.
 
 curl -X POST http://localhost:8000/sms \
   -H 'Content-Type: application/x-www-form-urlencoded' \

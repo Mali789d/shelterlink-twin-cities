@@ -74,18 +74,48 @@ def ready():
     )
 
 
+def resolve_search_coordinates(lat: float | None, lon: float | None,
+                               location: str | None) -> tuple[float, float]:
+    """Exactly one coordinate source: an explicit pair or a known place, never a guess."""
+    if location is not None and not location.strip():
+        raise HTTPException(status_code=400, detail="Location must not be blank")
+    if location and (lat is not None or lon is not None):
+        raise HTTPException(status_code=400,
+                            detail="Pass either coordinates or a location, not both")
+    if location:
+        try:
+            coordinates = geocoder.geocode(location)
+            if coordinates is not None:
+                validate_coordinates(*coordinates)
+        except Exception:
+            # A broken geocoder is a server misconfiguration, not a bad request.
+            # Do not log exceptions here: provider errors can contain request data.
+            raise HTTPException(status_code=503, detail="Location lookup is unavailable")
+        if coordinates is None:
+            raise HTTPException(status_code=400, detail="Unknown location")
+        return coordinates
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=400, detail="lat and lon must come together")
+    if lat is None:
+        raise HTTPException(status_code=400, detail="Pass coordinates or a location")
+    return lat, lon
+
+
 @app.get("/resources/search", response_model=list[ResourceResult])
 def search_resources(
-    lat: float = Query(ge=-90, le=90),
-    lon: float = Query(ge=-180, le=180),
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lon: float | None = Query(default=None, ge=-180, le=180),
+    location: str | None = Query(default=None, max_length=100),
     category: ResourceCategory | None = None,
     open_now: bool = False,
     limit: int = Query(default=3, ge=1, le=10),
     radius_miles: float | None = Query(default=None, ge=0, allow_inf_nan=False),
 ) -> list[ResourceResult]:
+    coordinates = resolve_search_coordinates(lat, lon, location)
     if prototype_data_only():
         raise HTTPException(status_code=503, detail="Verified resource data is not available")
-    return find_resources(resources, lat, lon, category, open_now, limit, radius_miles=radius_miles)
+    return find_resources(resources, *coordinates, category, open_now, limit,
+                          radius_miles=radius_miles)
 
 
 @app.post("/sms")
