@@ -70,3 +70,17 @@ test('a resolved ZIP feeds local search end to end', () => {
   assert.ok(state.results[0].distanceMiles < 0.5);
   assert.match(state.notice, /211.*911/);
 });
+
+test('metro city names resolve inside the Twin Cities metro', () => {
+  assert.equal(Object.keys(CITY_CENTROIDS).length, 47);
+  for (const [name, place] of Object.entries(CITY_CENTROIDS)) {
+    assert.match(name, /^[a-z ]+$/);
+    assert.ok(Object.isFrozen(place));
+    assert.ok(place.latitude > 44.70 && place.latitude < 45.25, name);
+    assert.ok(place.longitude > -93.75 && place.longitude < -92.85, name);
+    assert.deepEqual(lookupPlace(name), place);
+  }
+  assert.deepEqual(lookupPlace('Maple Grove'), CITY_CENTROIDS['maple grove']);
+  assert.deepEqual(lookupPlace('eden prairie'), CITY_CENTROIDS['eden prairie']);
+  assert.equal(lookupPlace('nowhereville'), null);
+});

@@ -2,6 +2,8 @@
 // ZIPs resolve to approximate centroids from the same public 2013 government ZIP
 // reference data as app/zip_centroids.py, with the same Hennepin/Ramsey county
 // coverage plus metro-adjacent 554xx/551xx ZIPs - never to an exact address.
+// Cities resolve to the mean of their covered ZIP centroids, matching
+// app/geocoding.py.
 // Keep this map in sync with the Python module; tests/test_zip_lookup_parity.py
 // enforces it.
 
@@ -115,6 +117,50 @@ export const CITY_CENTROIDS = Object.freeze({
   'minneapolis': Object.freeze({latitude: 44.9778, longitude: -93.265}),
   'saint paul': Object.freeze({latitude: 44.9537, longitude: -93.09}),
   'st paul': Object.freeze({latitude: 44.9537, longitude: -93.09}),
+  'apple valley': Object.freeze({latitude: 44.739462, longitude: -93.193842}),
+  'blaine': Object.freeze({latitude: 45.170133, longitude: -93.216146}),
+  'bloomington': Object.freeze({latitude: 44.831830, longitude: -93.308979}),
+  'brooklyn center': Object.freeze({latitude: 45.088209, longitude: -93.320774}),
+  'brooklyn park': Object.freeze({latitude: 45.122441, longitude: -93.379184}),
+  'champlin': Object.freeze({latitude: 45.172932, longitude: -93.386829}),
+  'columbia heights': Object.freeze({latitude: 45.050884, longitude: -93.253812}),
+  'coon rapids': Object.freeze({latitude: 45.177025, longitude: -93.307692}),
+  'crystal': Object.freeze({latitude: 45.062950, longitude: -93.381362}),
+  'dayton': Object.freeze({latitude: 45.195735, longitude: -93.475802}),
+  'eagan': Object.freeze({latitude: 44.834317, longitude: -93.161744}),
+  'eden prairie': Object.freeze({latitude: 44.871734, longitude: -93.447645}),
+  'edina': Object.freeze({latitude: 44.894120, longitude: -93.349533}),
+  'excelsior': Object.freeze({latitude: 44.895664, longitude: -93.607649}),
+  'fridley': Object.freeze({latitude: 45.096702, longitude: -93.253726}),
+  'golden valley': Object.freeze({latitude: 45.005499, longitude: -93.379150}),
+  'hamel': Object.freeze({latitude: 45.078263, longitude: -93.572118}),
+  'lauderdale': Object.freeze({latitude: 44.982482, longitude: -93.174880}),
+  'little canada': Object.freeze({latitude: 45.003562, longitude: -93.091280}),
+  'long lake': Object.freeze({latitude: 44.994245, longitude: -93.589620}),
+  'loretto': Object.freeze({latitude: 45.103722, longitude: -93.674218}),
+  'maple grove': Object.freeze({latitude: 45.116924, longitude: -93.471214}),
+  'maple plain': Object.freeze({latitude: 45.009760, longitude: -93.698110}),
+  'maplewood': Object.freeze({latitude: 44.937421, longitude: -93.007402}),
+  'mendota': Object.freeze({latitude: 44.886640, longitude: -93.165422}),
+  'minnetonka': Object.freeze({latitude: 44.935908, longitude: -93.456214}),
+  'mound': Object.freeze({latitude: 44.936989, longitude: -93.677783}),
+  'new brighton': Object.freeze({latitude: 45.081866, longitude: -93.190493}),
+  'north saint paul': Object.freeze({latitude: 45.014551, longitude: -93.025535}),
+  'oakdale': Object.freeze({latitude: 44.987546, longitude: -92.963553}),
+  'plymouth': Object.freeze({latitude: 45.023869, longitude: -93.457527}),
+  'richfield': Object.freeze({latitude: 44.874460, longitude: -93.282529}),
+  'robbinsdale': Object.freeze({latitude: 45.009275, longitude: -93.341105}),
+  'rogers': Object.freeze({latitude: 45.175548, longitude: -93.575531}),
+  'roseville': Object.freeze({latitude: 45.012196, longitude: -93.151186}),
+  'saint louis park': Object.freeze({latitude: 44.954251, longitude: -93.355210}),
+  'shoreview': Object.freeze({latitude: 45.084450, longitude: -93.132817}),
+  'spring park': Object.freeze({latitude: 44.937621, longitude: -93.635153}),
+  'st louis park': Object.freeze({latitude: 44.954251, longitude: -93.355210}),
+  'vadnais heights': Object.freeze({latitude: 45.083907, longitude: -93.080233}),
+  'wayzata': Object.freeze({latitude: 44.956401, longitude: -93.538993}),
+  'west saint paul': Object.freeze({latitude: 44.912692, longitude: -93.090059}),
+  'white bear lake': Object.freeze({latitude: 45.078907, longitude: -92.979715}),
+  'woodbury': Object.freeze({latitude: 44.918031, longitude: -92.938277}),
 });
 
 // A trimmed 5-digit ZIP or a lowercase city name; anything else is not a place we know.

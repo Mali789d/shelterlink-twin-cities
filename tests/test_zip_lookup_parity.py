@@ -38,11 +38,13 @@ def test_zip_centroids_match_exactly():
 def test_city_entries_match_the_python_geocoder():
     js_cities = javascript_maps()["cities"]
     python = DevelopmentGeocoder().locations
-    for name in ("minneapolis", "saint paul", "st paul"):
-        latitude, longitude = python[name]
+    expected = {name: coords for name, coords in python.items()
+                if not name.isdigit()}
+    assert len(expected) == 47
+    assert set(js_cities) == set(expected)
+    for name, (latitude, longitude) in expected.items():
         assert js_cities[name]["latitude"] == pytest.approx(latitude, abs=1e-9), name
         assert js_cities[name]["longitude"] == pytest.approx(longitude, abs=1e-9), name
-    assert set(js_cities) == {"minneapolis", "saint paul", "st paul"}
 
 
 def test_lookup_behavior_matches_python_semantics():

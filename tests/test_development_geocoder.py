@@ -58,3 +58,18 @@ def test_city_centroids_stay_on_their_own_sides_of_the_river():
     _, saint_paul_lng = geocoder.geocode("saint paul")
     # Minneapolis sits west of Saint Paul; a swapped entry would flip this.
     assert minneapolis_lng < saint_paul_lng
+
+
+def test_metro_city_names_resolve_to_metro_centroids():
+    geocoder = DevelopmentGeocoder()
+    city_entries = {name: coords for name, coords in geocoder.locations.items()
+                    if not name.isdigit()}
+    assert len(city_entries) == 47
+    lat_min, lat_max, lng_min, lng_max = TWIN_CITIES_BOX
+    for name, (latitude, longitude) in city_entries.items():
+        assert re.fullmatch(r"[a-z ]+", name)
+        assert lat_min < latitude < lat_max, name
+        assert lng_min < longitude < lng_max, name
+    assert geocoder.geocode("Maple Grove") == geocoder.locations["maple grove"]
+    assert geocoder.geocode("Eden Prairie") == geocoder.locations["eden prairie"]
+    assert geocoder.geocode("nowhereville") is None
