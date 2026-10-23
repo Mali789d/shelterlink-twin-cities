@@ -55,9 +55,10 @@ curl 'http://localhost:8000/resources/search?lat=44.9778&lon=-93.2650&category=s
 curl 'http://localhost:8000/resources/search?location=55415&category=shelter'
 
 Search takes exactly one coordinate source: an explicit `lat`/`lon` pair or a `location`
-place string resolved through the same geocoder as SMS. Passing both, half a pair, a
-blank value or an unknown place is a 400 - the API never guesses a search point. A
-broken geocoder answer (out-of-range or an exception) is a 503, not a search.
+string. The string can be decimal `"latitude, longitude"` or a known place resolved
+through the same geocoder as SMS. Passing both, half a pair, a blank value or an
+unknown place is a 400 - the API never guesses a search point. A broken geocoder
+answer (out-of-range or an exception) is a 503, not a search.
 
 curl -X POST http://localhost:8000/sms \
   -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -77,9 +78,11 @@ language; service vocabulary alone does not select it.
 Only whole words/phrases select a category, so a place like Bedford does not mean
 `bed`. If a message includes multiple different service categories, the webhook returns
 HELP instead of silently picking one. Send one service per search. Named locations still
-use the development geocoder, not a live geocoding service. It resolves every Minneapolis
-(554xx) and Saint Paul (551xx) ZIP to an approximate centroid - never an exact address -
-from public 2013 government ZIP reference data, plus the two city names.
+use the development geocoder, not a live geocoding service. It resolves every covered
+metro ZIP (Hennepin and Ramsey counties plus metro-adjacent ZIPs) to an approximate
+centroid - never an exact address - from public 2013 government ZIP reference data,
+plus the municipalities those ZIPs belong to. A texted `"latitude, longitude"` pair
+also works, mirroring the browser location input.
 
 ## Webhook security
 
@@ -254,9 +257,9 @@ contact or website deployment is included. Reading JSON does not verify its prov
 `web/location-input.mjs` turns typed text into search coordinates for a later page.
 `parseCoordinates` accepts only explicit decimal latitude,longitude and rejects
 ambiguous strings rather than guessing. `parseLocation` additionally resolves a known
-Minneapolis/Saint Paul ZIP or city name through `web/zip-lookup.mjs`, an offline map
-of the same 83 public-data ZIP centroids as the Python development geocoder (a parity
-test keeps the two identical). A ZIP resolves to its approximate centroid, never an
+Twin Cities metro ZIP or city name through `web/zip-lookup.mjs`, an offline map of the
+same county-grounded public-data centroids as the Python development geocoder (a
+parity test keeps the two identical). A ZIP resolves to its approximate centroid, never an
 exact address; unknown places, partial addresses and unmapped ZIPs are rejected so the
 page asks again instead of silently searching the wrong area. No network, GPS request
 or storage is involved.

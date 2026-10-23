@@ -1,7 +1,7 @@
 """The development geocoder covers Twin Cities metro ZIPs with sane centroids."""
 import re
 
-from app.geocoding import DevelopmentGeocoder
+from app.geocoding import DevelopmentGeocoder, parse_coordinates
 from app.search import validate_coordinates
 from app.zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
 
@@ -73,3 +73,15 @@ def test_metro_city_names_resolve_to_metro_centroids():
     assert geocoder.geocode("Maple Grove") == geocoder.locations["maple grove"]
     assert geocoder.geocode("Eden Prairie") == geocoder.locations["eden prairie"]
     assert geocoder.geocode("nowhereville") is None
+
+
+def test_parse_coordinates_accepts_only_explicit_in_range_pairs():
+    assert parse_coordinates("44.9778,-93.2650") == (44.9778, -93.2650)
+    assert parse_coordinates("44.9778, -93.2650") == (44.9778, -93.2650)
+    assert parse_coordinates(" 44.9 , -93.1 ") == (44.9, -93.1)
+    assert parse_coordinates(".5,-93") == (0.5, -93.0)
+    assert parse_coordinates("0,0") == (0.0, 0.0)
+    for rejected in ("55401", "maple grove", "44.9 -93.1", "91,0", "0,-181",
+                     "12,34,56", "", "Infinity,0", "44.9,",
+                     "44." + "0" * 100 + ",-93"):
+        assert parse_coordinates(rejected) is None, rejected

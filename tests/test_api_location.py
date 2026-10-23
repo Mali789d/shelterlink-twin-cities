@@ -66,3 +66,32 @@ def test_raising_geocoder_is_a_server_error_not_a_500(monkeypatch):
     monkeypatch.setattr(main.geocoder, "geocode", explode)
     response = client.get("/resources/search", params={"location": "55415"})
     assert response.status_code == 503
+
+
+def test_location_accepts_an_explicit_coordinate_string():
+    response = client.get("/resources/search",
+                          params={"location": "44.9778,-93.2650"})
+    assert response.status_code == 200
+    assert response.json(), "downtown coordinates should find sample resources"
+
+
+def test_location_coordinate_string_matches_the_split_pair():
+    as_string = client.get("/resources/search",
+                           params={"location": "44.9778,-93.2650"})
+    as_pair = client.get("/resources/search",
+                         params={"lat": 44.9778, "lon": -93.2650})
+    assert as_string.status_code == as_pair.status_code == 200
+    assert as_string.json() == as_pair.json()
+
+
+def test_out_of_range_coordinate_string_is_not_a_search_point():
+    response = client.get("/resources/search", params={"location": "44.9,-999"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unknown location"
+
+
+def test_coordinate_string_still_conflicts_with_a_split_pair():
+    response = client.get("/resources/search",
+                          params={"location": "44.9778,-93.2650", "lat": 44.97})
+    assert response.status_code == 400
+    assert "not both" in response.json()["detail"]

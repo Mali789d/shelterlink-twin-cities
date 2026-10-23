@@ -61,3 +61,25 @@ def test_place_name_starting_with_preposition_letters_is_untouched():
 @pytest.mark.parametrize("text", ["shelter in", "in", "food near"])
 def test_trailing_preposition_alone_asks_for_a_location(text):
     assert parse_sms(text) is None
+
+
+def test_texted_coordinates_remain_the_location():
+    query = parse_sms("shelter 44.9778,-93.2650")
+    assert query is not None
+    assert query.location == "44.9778,-93.2650"
+
+
+def test_sms_webhook_accepts_texted_coordinates():
+    response = TestClient(app).post("/sms", data={"Body": "shelter 44.9778,-93.2650",
+                                                "From": "+15555550101"})
+    assert response.status_code == 200
+    assert "couldn&#x27;t find that location" not in response.text
+    assert "Sample Minneapolis Shelter" in response.text
+
+
+def test_sms_webhook_rejects_out_of_range_coordinates_without_guessing():
+    response = TestClient(app).post("/sms", data={"Body": "shelter 44.9,-999",
+                                                "From": "+15555550102"})
+    assert response.status_code == 200
+    assert "couldn&#x27;t find that location" in response.text
+    assert "Sample Minneapolis Shelter" not in response.text

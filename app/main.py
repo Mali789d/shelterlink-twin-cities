@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 
 from .data import load_resources
-from .geocoding import DevelopmentGeocoder
+from .geocoding import DevelopmentGeocoder, parse_coordinates
 from .i18n import MESSAGES, Language, parse_language
 from .keywords import (
     InMemoryOptOutStore, Keyword, OptOutStore, classify_keyword, durable_opt_out_store,
@@ -76,13 +76,17 @@ def ready():
 
 def resolve_search_coordinates(lat: float | None, lon: float | None,
                                location: str | None) -> tuple[float, float]:
-    """Exactly one coordinate source: an explicit pair or a known place, never a guess."""
+    """Exactly one coordinate source: an explicit pair, a "lat, lng"
+    string, or a known place - never a guess."""
     if location is not None and not location.strip():
         raise HTTPException(status_code=400, detail="Location must not be blank")
     if location and (lat is not None or lon is not None):
         raise HTTPException(status_code=400,
                             detail="Pass either coordinates or a location, not both")
     if location:
+        coordinates = parse_coordinates(location)
+        if coordinates is not None:
+            return coordinates
         try:
             coordinates = geocoder.geocode(location)
             if coordinates is not None:
@@ -161,7 +165,9 @@ async def sms(request: Request) -> Response:
         message = MESSAGES[language]["help"]
     else:
         try:
-            coordinates = geocoder.geocode(query.location)
+            coordinates = parse_coordinates(query.location)
+            if coordinates is None:
+                coordinates = geocoder.geocode(query.location)
             if coordinates is not None:
                 validate_coordinates(*coordinates)
         except Exception:

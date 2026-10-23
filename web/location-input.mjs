@@ -28,6 +28,6 @@ export function parseLocation(input) {
   } catch {
     const place = lookupPlace(input);
     if (place) return place;
-    throw new Error('Enter latitude, longitude, or a Minneapolis/Saint Paul ZIP');
+    throw new Error('Enter latitude, longitude, or a Twin Cities metro ZIP or city');
   }
 }

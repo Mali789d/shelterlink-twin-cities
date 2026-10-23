@@ -1,3 +1,4 @@
+import re
 from typing import Protocol
 
 from .zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
@@ -78,3 +79,27 @@ class DevelopmentGeocoder:
 
     def geocode(self, location: str) -> tuple[float, float] | None:
         return self.locations.get(location.lower().strip())
+
+
+# Explicit "latitude, longitude" text: decimal degrees, comma separated, in range.
+_COORDINATES_PATTERN = re.compile(
+    r"^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*$"
+)
+
+
+def parse_coordinates(text: str) -> tuple[float, float] | None:
+    """Explicit "latitude, longitude" text, or None for anything else.
+
+    Mirrors web/location-input.mjs parseCoordinates: only decimal degrees within
+    range - never a guessed ZIP, address or direction. Both groups come from a
+    digits-only pattern, so the floats are always finite.
+    """
+    if len(text) > 100:
+        return None
+    match = _COORDINATES_PATTERN.match(text)
+    if not match:
+        return None
+    latitude, longitude = float(match[1]), float(match[2])
+    if abs(latitude) > 90 or abs(longitude) > 180:
+        return None
+    return latitude, longitude
