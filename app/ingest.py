@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .data import MAX_SNAPSHOT_BYTES, unique_object
+from .hours_text import parse_hours_text
 from .models import Resource
 
 
@@ -60,6 +61,14 @@ def ingest_records(raw_records, mapping: dict[str, str]) -> dict:
                                "errors": ["record must be a JSON object"]})
             continue
         mapped = {target: record[source] for target, source in mapping.items() if source in record}
+        if isinstance(mapped.get("hours"), str):
+            # Provider exports carry hours as text; parse strictly or reject the record.
+            try:
+                mapped["hours"] = parse_hours_text(mapped["hours"])
+            except ValueError as error:
+                rejections.append({"index": index, "record_id": mapped.get("id"),
+                                   "errors": [f"hours: {error}"]})
+                continue
         try:
             resource = Resource.model_validate(mapped)
         except ValidationError as error:

@@ -172,6 +172,10 @@ explicit object of resource field to provider field; a typo like `addres` fails 
 instead of silently dropping data. Each record validates on its own, so one dirty row
 rejects itself with a reason instead of failing the batch, duplicate IDs reject the
 later record, and `is_sample` stays on unless a record asserts it with a real boolean.
+A mapped `hours` value may be structured intervals or provider free text such as
+`Mon-Fri 9 AM-5 PM; Sat 10 AM-2 PM`; common unambiguous formats parse into structured
+hours, and anything ambiguous (bare numbers, overnight spans, "call for hours")
+rejects the record with a reason instead of guessing a schedule.
 The candidate is review input only - audit, compare and export treat it like any other
 snapshot, and ingestion is not provider verification.
 
