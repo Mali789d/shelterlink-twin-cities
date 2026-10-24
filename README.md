@@ -122,7 +122,10 @@ Phone numbers are stored only as salted SHA-256 digests (`OPT_OUT_HASH_SALT`).
 Development uses process-local memory. Production requires `OPT_OUT_TABLE` and a private,
 unchanging `OPT_OUT_HASH_SALT` of at least 32 characters, and uses DynamoDB with strongly consistent reads. Only the
 digest is saved, with no message body or automatic expiry. STOP survives separate Lambda
-instances; START deletes the digest. Missing configuration or a failed storage operation
+instances; START deletes the digest. A sender's deletion request is honored with
+`OptOutStore.forget(phone)`, an operator-only action (never a webhook keyword, so an
+unauthenticated text cannot erase consent records) that removes the digest and reports
+whether a record existed. Missing configuration or a failed storage operation
 returns 503 without a message, never an in-memory fallback or a false START confirmation.
 An SMS without a sender is rejected. Changing the salt or table loses lookup continuity:
 preserve both across deployments and treat any migration as a consent-data migration.

@@ -62,6 +62,7 @@ class OptOutStore(Protocol):
     def is_opted_out(self, phone: str) -> bool: ...
     def opt_out(self, phone: str) -> None: ...
     def opt_in(self, phone: str) -> None: ...
+    def forget(self, phone: str) -> bool: ...
 
 
 class InMemoryOptOutStore:
@@ -86,6 +87,13 @@ class InMemoryOptOutStore:
     def opt_in(self, phone: str) -> None:
         self._opted_out.discard(hash_phone(phone, self._salt))
 
+    def forget(self, phone: str) -> bool:
+        digest = hash_phone(phone, self._salt) if phone else ""
+        if digest not in self._opted_out:
+            return False
+        self._opted_out.discard(digest)
+        return True
+
     def stored_digests(self) -> frozenset[str]:
         return frozenset(self._opted_out)
 
@@ -95,7 +103,12 @@ class OptOutStoreUnavailable(RuntimeError):
 
 
 class DynamoDBOptOutStore:
-    """Shared opt-outs with no raw numbers, message bodies, or automatic expiry."""
+    """Shared opt-outs with no raw numbers, message bodies, or automatic expiry.
+
+    forget() honors a sender's deletion request and reports whether a record
+    existed. It is deliberately not a webhook keyword: an unauthenticated text
+    must never erase consent records, so deletion stays an operator action.
+    """
 
     def __init__(self, table: str, salt: str, client=None) -> None:
         if not table.strip() or len(salt.strip()) < 32 or salt == "dev-salt":
@@ -130,6 +143,15 @@ class DynamoDBOptOutStore:
     def opt_in(self, phone: str) -> None:
         try:
             self._client.delete_item(TableName=self._table, Key=self._key(phone))
+        except Exception as exc:
+            raise OptOutStoreUnavailable("Cannot remove opt-out state") from exc
+
+    def forget(self, phone: str) -> bool:
+        try:
+            result = self._client.delete_item(
+                TableName=self._table, Key=self._key(phone), ReturnValues="ALL_OLD",
+            )
+            return "Attributes" in result
         except Exception as exc:
             raise OptOutStoreUnavailable("Cannot remove opt-out state") from exc
 
