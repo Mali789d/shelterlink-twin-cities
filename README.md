@@ -46,7 +46,11 @@ Open `http://localhost:8000/docs` for the API documentation.
 
 ```bash
 pytest -q
+node --test tests/test_web_*.mjs
 ```
+
+GitHub Actions runs both suites on every push and pull request to `main`
+(`.github/workflows/ci.yml`).
 
 ## API
 
