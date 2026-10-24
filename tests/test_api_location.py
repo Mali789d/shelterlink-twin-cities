@@ -95,3 +95,12 @@ def test_coordinate_string_still_conflicts_with_a_split_pair():
                           params={"location": "44.9778,-93.2650", "lat": 44.97})
     assert response.status_code == 400
     assert "not both" in response.json()["detail"]
+
+
+def test_location_accepts_common_texting_variants():
+    client = TestClient(app)
+    for variant in ("st. paul", "St. Paul, MN", "north st paul", "maple grove mn"):
+        response = client.get("/resources/search",
+                              params={"category": "shelter", "location": variant})
+        assert response.status_code == 200, variant
+        assert response.headers["content-type"].startswith("application/json")

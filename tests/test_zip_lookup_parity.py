@@ -19,7 +19,8 @@ def javascript_maps():
         "import('./web/zip-lookup.mjs').then(m => console.log(JSON.stringify({"
         "zips: m.ZIP_CENTROIDS, cities: m.CITY_CENTROIDS,"
         "lookups: [m.lookupPlace('55415'), m.lookupPlace(' Minneapolis '),"
-        " m.lookupPlace('10001'), m.lookupPlace(42)]})))"
+        " m.lookupPlace('10001'), m.lookupPlace(42),"
+        " m.lookupPlace('St. Paul, MN'), m.lookupPlace('mn')]})))"
     )
     result = subprocess.run(["node", "-e", script], cwd=REPO,
                             capture_output=True, text=True, check=True)
@@ -40,7 +41,7 @@ def test_city_entries_match_the_python_geocoder():
     python = DevelopmentGeocoder().locations
     expected = {name: coords for name, coords in python.items()
                 if not name.isdigit()}
-    assert len(expected) == 47
+    assert len(expected) == 49
     assert set(js_cities) == set(expected)
     for name, (latitude, longitude) in expected.items():
         assert js_cities[name]["latitude"] == pytest.approx(latitude, abs=1e-9), name
@@ -53,3 +54,6 @@ def test_lookup_behavior_matches_python_semantics():
     assert lookups[0]["latitude"] == pytest.approx(python.geocode("55415")[0], abs=1e-9)
     assert lookups[1]["latitude"] == pytest.approx(python.geocode(" Minneapolis ")[0], abs=1e-9)
     assert lookups[2] is None and lookups[3] is None
+    assert lookups[4]["latitude"] == pytest.approx(
+        python.geocode("St. Paul, MN")[0], abs=1e-9)
+    assert lookups[5] is None

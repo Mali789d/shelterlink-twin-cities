@@ -27,6 +27,22 @@ test('city names trim case and whitespace like the Python geocoder', () => {
   assert.deepEqual(lookupPlace('st paul'), CITY_CENTROIDS['saint paul']);
 });
 
+test('place lookup forgives common texting variants like Python', () => {
+  assert.deepEqual(lookupPlace('St. Paul'), CITY_CENTROIDS['saint paul']);
+  assert.deepEqual(lookupPlace('ST. PAUL, MN'), CITY_CENTROIDS['saint paul']);
+  assert.deepEqual(lookupPlace('Minneapolis, Minnesota'), CITY_CENTROIDS['minneapolis']);
+  assert.deepEqual(lookupPlace('st.  louis   park'), CITY_CENTROIDS['st louis park']);
+  assert.deepEqual(lookupPlace('west st. paul'), CITY_CENTROIDS['west saint paul']);
+  assert.deepEqual(lookupPlace('north st paul'), CITY_CENTROIDS['north saint paul']);
+  assert.deepEqual(lookupPlace('55401 mn'), ZIP_CENTROIDS['55401']);
+});
+
+test('variant forgiveness never guesses a place', () => {
+  for (const input of ['mn', 'minnesota', 'duluth mn', '5540.1', 'st.paul']) {
+    assert.equal(lookupPlace(input), null, JSON.stringify(input));
+  }
+});
+
 test('unknown and ambiguous places return null instead of a guess', () => {
   for (const input of ['10001', '1000', '554150', 'nowhere particular',
     '123 Main St, Minneapolis', '44.9, -93.1', '', null, {}, 55415]) {
@@ -72,7 +88,7 @@ test('a resolved ZIP feeds local search end to end', () => {
 });
 
 test('metro city names resolve inside the Twin Cities metro', () => {
-  assert.equal(Object.keys(CITY_CENTROIDS).length, 47);
+  assert.equal(Object.keys(CITY_CENTROIDS).length, 49);
   for (const [name, place] of Object.entries(CITY_CENTROIDS)) {
     assert.match(name, /^[a-z ]+$/);
     assert.ok(Object.isFrozen(place));

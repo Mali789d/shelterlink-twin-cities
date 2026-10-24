@@ -33,6 +33,28 @@ def test_lookup_trims_case_and_whitespace_for_names():
     assert geocoder.geocode("Saint Paul") == geocoder.geocode("st paul")
 
 
+def test_lookup_forgives_common_texting_variants():
+    geocoder = DevelopmentGeocoder()
+    saint_paul = geocoder.locations["saint paul"]
+    assert geocoder.geocode("St. Paul") == saint_paul
+    assert geocoder.geocode("ST. PAUL, MN") == saint_paul
+    assert geocoder.geocode("Saint Paul, Minnesota") == saint_paul
+    assert geocoder.geocode("st.  louis   park") == geocoder.locations["st louis park"]
+    assert geocoder.geocode("west st. paul") == geocoder.locations["west saint paul"]
+    assert geocoder.geocode("north st paul") == geocoder.locations["north saint paul"]
+    assert geocoder.geocode("Maple Grove MN") == geocoder.locations["maple grove"]
+    assert geocoder.geocode("55401 mn") == geocoder.locations["55401"]
+
+
+def test_lookup_variants_never_guess_a_place():
+    geocoder = DevelopmentGeocoder()
+    assert geocoder.geocode("mn") is None
+    assert geocoder.geocode("minnesota") is None
+    assert geocoder.geocode("duluth mn") is None  # a real place, outside our map
+    assert geocoder.geocode("st.paul") is None  # no space is a different token
+    assert geocoder.geocode("5540.1") is None  # a stray period never makes a ZIP
+
+
 def test_unknown_locations_return_none():
     geocoder = DevelopmentGeocoder()
     assert geocoder.geocode("10001") is None  # outside the Twin Cities
@@ -64,7 +86,7 @@ def test_metro_city_names_resolve_to_metro_centroids():
     geocoder = DevelopmentGeocoder()
     city_entries = {name: coords for name, coords in geocoder.locations.items()
                     if not name.isdigit()}
-    assert len(city_entries) == 47
+    assert len(city_entries) == 49
     lat_min, lat_max, lng_min, lng_max = TWIN_CITIES_BOX
     for name, (latitude, longitude) in city_entries.items():
         assert re.fullmatch(r"[a-z ]+", name)

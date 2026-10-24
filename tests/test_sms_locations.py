@@ -83,3 +83,12 @@ def test_sms_webhook_rejects_out_of_range_coordinates_without_guessing():
     assert response.status_code == 200
     assert "couldn&#x27;t find that location" in response.text
     assert "Sample Minneapolis Shelter" not in response.text
+
+
+def test_texted_city_variants_reach_the_same_search():
+    client = TestClient(app)
+    for body in ("shelter st. paul", "shelter St. Paul, MN",
+                 "shelter west st. paul, minnesota"):
+        response = client.post("/sms", data={"Body": body, "From": "+15555550100"})
+        assert response.status_code == 200, body
+        assert "Text a Twin Cities ZIP or location" not in response.text, body

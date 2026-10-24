@@ -46,6 +46,7 @@ TWIN_CITIES_CITY_CENTROIDS: dict[str, tuple[float, float]] = {
     "mound": (44.936989, -93.677783),
     "new brighton": (45.081866, -93.190493),
     "north saint paul": (45.014551, -93.025535),
+    "north st paul": (45.014551, -93.025535),
     "oakdale": (44.987546, -92.963553),
     "plymouth": (45.023869, -93.457527),
     "richfield": (44.874460, -93.282529),
@@ -59,6 +60,7 @@ TWIN_CITIES_CITY_CENTROIDS: dict[str, tuple[float, float]] = {
     "vadnais heights": (45.083907, -93.080233),
     "wayzata": (44.956401, -93.538993),
     "west saint paul": (44.912692, -93.090059),
+    "west st paul": (44.912692, -93.090059),
     "white bear lake": (45.078907, -92.979715),
     "woodbury": (44.918031, -92.938277),
 }
@@ -78,7 +80,20 @@ class DevelopmentGeocoder:
     }
 
     def geocode(self, location: str) -> tuple[float, float] | None:
-        return self.locations.get(location.lower().strip())
+        return self.locations.get(normalize_place(location))
+
+
+# Texting variants of the same place: a trailing state name, abbreviation
+# periods (St.) and stray whitespace never change which city the sender means.
+_STATE_SUFFIX = re.compile(r"\s*,?\s*(?:mn|minnesota)$")
+_LETTER_PERIOD = re.compile(r"(?<=[a-z])\.")
+
+
+def normalize_place(text: str) -> str:
+    """Canonical lookup key for a texted place; unknown input stays unknown."""
+    text = " ".join(text.lower().split())
+    text = _LETTER_PERIOD.sub("", text)
+    return _STATE_SUFFIX.sub("", text).strip(" ,")
 
 
 # Explicit "latitude, longitude" text: decimal degrees, comma separated, in range.

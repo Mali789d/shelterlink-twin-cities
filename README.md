@@ -85,8 +85,11 @@ HELP instead of silently picking one. Send one service per search. Named locatio
 use the development geocoder, not a live geocoding service. It resolves every covered
 metro ZIP (Hennepin and Ramsey counties plus metro-adjacent ZIPs) to an approximate
 centroid - never an exact address - from public 2013 government ZIP reference data,
-plus the municipalities those ZIPs belong to. A texted `"latitude, longitude"` pair
-also works, mirroring the browser location input.
+plus the municipalities those ZIPs belong to. Lookups forgive the usual texting
+variants - case, extra spaces, `St.` abbreviations and a trailing `MN` or `Minnesota`
+all resolve to the same place, while anything still unknown is rejected rather than
+guessed. A texted `"latitude, longitude"` pair also works, mirroring the browser
+location input.
 
 ## Webhook security
 

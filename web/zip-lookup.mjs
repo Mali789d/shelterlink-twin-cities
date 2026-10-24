@@ -146,6 +146,7 @@ export const CITY_CENTROIDS = Object.freeze({
   'mound': Object.freeze({latitude: 44.936989, longitude: -93.677783}),
   'new brighton': Object.freeze({latitude: 45.081866, longitude: -93.190493}),
   'north saint paul': Object.freeze({latitude: 45.014551, longitude: -93.025535}),
+  'north st paul': Object.freeze({latitude: 45.014551, longitude: -93.025535}),
   'oakdale': Object.freeze({latitude: 44.987546, longitude: -92.963553}),
   'plymouth': Object.freeze({latitude: 45.023869, longitude: -93.457527}),
   'richfield': Object.freeze({latitude: 44.874460, longitude: -93.282529}),
@@ -159,13 +160,27 @@ export const CITY_CENTROIDS = Object.freeze({
   'vadnais heights': Object.freeze({latitude: 45.083907, longitude: -93.080233}),
   'wayzata': Object.freeze({latitude: 44.956401, longitude: -93.538993}),
   'west saint paul': Object.freeze({latitude: 44.912692, longitude: -93.090059}),
+  'west st paul': Object.freeze({latitude: 44.912692, longitude: -93.090059}),
   'white bear lake': Object.freeze({latitude: 45.078907, longitude: -92.979715}),
   'woodbury': Object.freeze({latitude: 44.918031, longitude: -92.938277}),
 });
 
-// A trimmed 5-digit ZIP or a lowercase city name; anything else is not a place we know.
+// Texting variants of the same place: a trailing state name, abbreviation
+// periods (St.) and stray whitespace never change which city the sender means.
+// Mirrors app/geocoding.py normalize_place; keep the two implementations in sync.
+const STATE_SUFFIX = /\s*,?\s*(?:mn|minnesota)$/;
+const LETTER_PERIOD = /(?<=[a-z])\./g;
+
+function normalizePlace(text) {
+  return text.toLowerCase().trim().replace(/\s+/g, ' ')
+    .replace(LETTER_PERIOD, '').replace(STATE_SUFFIX, '')
+    .replace(/^[ ,]+|[ ,]+$/g, '');
+}
+
+// A 5-digit ZIP or a known city name, forgiving common texting variants;
+// anything else is not a place we know.
 export function lookupPlace(input) {
   if (typeof input !== 'string' || input.length > 100) return null;
-  const trimmed = input.trim();
-  return ZIP_CENTROIDS[trimmed] ?? CITY_CENTROIDS[trimmed.toLowerCase()] ?? null;
+  const text = normalizePlace(input);
+  return ZIP_CENTROIDS[text] ?? CITY_CENTROIDS[text] ?? null;
 }
