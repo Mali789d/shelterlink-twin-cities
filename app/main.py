@@ -130,17 +130,21 @@ def search_resources(
 async def sms(request: Request) -> Response:
     form = await read_sms_form(request)
     message_sid = str(form.get("MessageSid") or "")
+    sender = str(form.get("From") or "")
+    body = str(form.get("Body") or "")
     if message_sid:
-        cached = reply_cache.get(message_sid)
+        cached = reply_cache.get(message_sid, sender, body)
         if cached is not None:
-            # A Twilio redelivery of a message we already answered: replay the
-            # identical response instead of sending a second paid reply.
+            # A Twilio redelivery of a request already answered: replay the
+            # identical response instead of computing the message again.
             return Response(cached, media_type="application/xml")
     response = respond_to_sms_form(request, form)
     if message_sid and response.status_code == 200:
         # Only successful replies are cached: a redelivery after a 4xx/5xx is
         # processed fresh so the sender still gets help once the outage clears.
-        reply_cache.put(message_sid, response.body.decode("utf-8"))
+        # The lookup-to-store path is synchronous, so same-SID requests cannot
+        # interleave inside this process.
+        reply_cache.put(message_sid, sender, body, response.body.decode("utf-8"))
     return response
 
 

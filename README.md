@@ -125,15 +125,26 @@ the application process, like the development opt-out store: a multi-instance
 deployment needs a shared store before launch, and the limit is per instance until
 then. Inbound message cost is set by the carrier and cannot be bounded here.
 
-Twilio delivers webhooks at least once: it retries after 5xx responses and
-connection failures, and a retry of a delivery whose 200 response was lost would
-otherwise send the user a second, possibly different paid reply. The webhook caches
-each successful reply by its `MessageSid` (four-hour TTL, oldest entries evicted past
-10,000) and answers a redelivery with the identical response. A redelivery never
-consumes reply-throttle budget, because it is the same logical message. Failed
-deliveries (4xx/5xx) are never cached, so a retry after an outage is processed fresh
-and the sender still gets help. The cache is per process like the other development
-stores; a multi-instance deployment needs a shared one before launch.
+Twilio delivers inbound-message webhooks at least once: it retries failed attempts
+(by default once, on connection timeout; responses slower than its 15-second read
+timeout also trigger a fresh attempt), and every attempt for the same inbound
+message carries the same `MessageSid`. The webhook caches each successful reply by
+`MessageSid` (four-hour TTL, oldest entries evicted past 10,000), bound to the
+sender and body of the original request, and answers a redelivery with the
+identical response. That gives exactly-once processing per process within the
+cache window: one computation, one reply-throttle slot and one response body per
+message. The lookup-to-store path is synchronous, so redeliveries cannot
+interleave inside one process; failed deliveries (4xx/5xx) are never cached, so a
+retry after an outage is processed fresh and the sender still gets help.
+
+This is not exactly-once outbound SMS, which no application cache can provide:
+Twilio sends a reply for every TwiML response it processes and does not dedupe
+those sends by the inbound `MessageSid`, so if Twilio itself processes responses
+from two attempts, or a redelivery arrives after the cache expired or the process
+restarted, the sender can receive the reply twice. Carriers can also duplicate
+deliveries on their own. Keep the provider window small by responding well inside
+the read timeout. The cache is per process like the other development stores; a
+multi-instance deployment needs a shared one before launch.
 
 ## Opt-out and help keywords
 

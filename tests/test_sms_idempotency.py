@@ -1,4 +1,8 @@
-"""Twilio redeliveries replay the cached response instead of paying for a second reply."""
+"""Twilio redeliveries replay the cached response instead of being processed again.
+
+The cache gives exactly-once processing per process within its window; it
+cannot guarantee exactly-once outbound SMS, which is provider-side behavior.
+"""
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,20 +25,29 @@ def make_cache(**kwargs):
 
 def test_cached_reply_survives_until_the_ttl():
     state, cache = make_cache(ttl_seconds=60)
-    cache.put("SM1", "<Response><Message>hi</Message></Response>")
-    assert cache.get("SM1") == "<Response><Message>hi</Message></Response>"
+    cache.put("SM1", "+1", "hi", "<Response><Message>hi</Message></Response>")
+    assert cache.get("SM1", "+1", "hi") == "<Response><Message>hi</Message></Response>"
     state["now"] += 61
-    assert cache.get("SM1") is None
+    assert cache.get("SM1", "+1", "hi") is None
 
 
 def test_oldest_entry_is_evicted_past_the_ceiling():
     _, cache = make_cache(max_entries=2)
-    cache.put("SM1", "one")
-    cache.put("SM2", "two")
-    cache.put("SM3", "three")
-    assert cache.get("SM1") is None
-    assert cache.get("SM2") == "two"
-    assert cache.get("SM3") == "three"
+    cache.put("SM1", "+1", "a", "one")
+    cache.put("SM2", "+2", "b", "two")
+    cache.put("SM3", "+3", "c", "three")
+    assert cache.get("SM1", "+1", "a") is None
+    assert cache.get("SM2", "+2", "b") == "two"
+    assert cache.get("SM3", "+3", "c") == "three"
+
+
+def test_replay_requires_the_same_sender_and_body():
+    _, cache = make_cache()
+    cache.put("SM1", "+1", "shelter 55415", "reply")
+    assert cache.get("SM1", "+1", "shelter 55415") == "reply"
+    assert cache.get("SM1", "+2", "shelter 55415") is None  # different sender
+    assert cache.get("SM1", "+1", "meal 55415") is None     # different body
+    assert cache.get("SM1", "", "") is None
 
 
 def test_constructor_rejects_nonpositive_limits():
@@ -62,6 +75,16 @@ def test_redelivery_does_not_consume_the_reply_budget():
     assert "<Message>" in post_sms(sid=sid, sender=sender).text
     # A genuinely new message from the same sender spends fresh budget.
     assert "<Message>" in post_sms(sender=sender, sid="SM2000000000000000000000000000003").text
+
+
+def test_same_id_with_different_content_is_processed_fresh():
+    sid = "SM2000000000000000000000000000008"
+    first = post_sms(sid=sid, body="shelter 55415")
+    assert "<Message>" in first.text
+    # Same MessageSid but different content is not a redelivery: process it.
+    second = post_sms(sid=sid, body="meal 55101")
+    assert "<Message>" in second.text
+    assert second.text != first.text
 
 
 def test_distinct_message_ids_are_processed_independently():
