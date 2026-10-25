@@ -16,6 +16,7 @@ from .search import find_resources, validate_coordinates
 from .readiness import readiness_checks
 from .security import Verdict, WebhookSecurity
 from .sms import format_results, parse_sms, twiml
+from .throttle import ReplyThrottle
 from .webhook_form import read_sms_form
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app = FastAPI(
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
+reply_throttle = ReplyThrottle.from_env()
 
 
 def get_opt_out_store() -> OptOutStore:
@@ -156,6 +158,11 @@ async def sms(request: Request) -> Response:
         # Never acknowledge START or send a referral if consent storage is unavailable.
         # Do not log exceptions here: provider errors can contain request data.
         return Response("SMS consent storage is unavailable", status_code=503, media_type="text/plain")
+
+    if not reply_throttle.allow(sender):
+        # Past the per-sender reply budget: empty TwiML ends the exchange with
+        # no outbound message, so a runaway sender cannot run up reply charges.
+        return Response(twiml(None), media_type="application/xml")
 
     language = parse_language(body)
     if prototype_data_only():

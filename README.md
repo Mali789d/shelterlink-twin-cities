@@ -115,6 +115,16 @@ Limits apply to inbound metadata, not just the user's text. Multipart uploads an
 are not SMS webhook inputs. These limits bound application parsing work; they do not
 replace gateway throttling or upstream traffic-cost controls.
 
+Outbound cost gets its own bound: the webhook answers at most 5 non-keyword replies
+per sender per hour (`SHELTERLINK_SMS_REPLY_LIMIT` and
+`SHELTERLINK_SMS_REPLY_WINDOW_SECONDS` override the defaults). Past the budget the
+sender gets an empty TwiML response - a 200, so Twilio does not retry - until the
+sliding window frees a slot. Consent keywords (`STOP`, `START`, `HELP`) are never
+throttled because carriers require them to work every time. Reply windows live in
+the application process, like the development opt-out store: a multi-instance
+deployment needs a shared store before launch, and the limit is per instance until
+then. Inbound message cost is set by the carrier and cannot be bounded here.
+
 ## Opt-out and help keywords
 
 A message that is only an opt-out word (`STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`,
