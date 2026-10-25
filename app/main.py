@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder, parse_coordinates
 from .i18n import MESSAGES, Language, parse_language
+from .idempotency import ReplyCache
 from .keywords import (
     InMemoryOptOutStore, Keyword, OptOutStore, classify_keyword, durable_opt_out_store,
 )
@@ -28,6 +29,7 @@ resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
 reply_throttle = ReplyThrottle.from_env()
+reply_cache = ReplyCache()
 
 
 def get_opt_out_store() -> OptOutStore:
@@ -127,6 +129,22 @@ def search_resources(
 @app.post("/sms")
 async def sms(request: Request) -> Response:
     form = await read_sms_form(request)
+    message_sid = str(form.get("MessageSid") or "")
+    if message_sid:
+        cached = reply_cache.get(message_sid)
+        if cached is not None:
+            # A Twilio redelivery of a message we already answered: replay the
+            # identical response instead of sending a second paid reply.
+            return Response(cached, media_type="application/xml")
+    response = respond_to_sms_form(request, form)
+    if message_sid and response.status_code == 200:
+        # Only successful replies are cached: a redelivery after a 4xx/5xx is
+        # processed fresh so the sender still gets help once the outage clears.
+        reply_cache.put(message_sid, response.body.decode("utf-8"))
+    return response
+
+
+def respond_to_sms_form(request: Request, form) -> Response:
     params = {key: form.getlist(key) for key in form.keys()}
     verdict = WebhookSecurity.from_env().check(
         str(request.url), params, request.headers.get("X-Twilio-Signature")

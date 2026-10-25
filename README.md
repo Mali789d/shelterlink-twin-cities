@@ -125,6 +125,16 @@ the application process, like the development opt-out store: a multi-instance
 deployment needs a shared store before launch, and the limit is per instance until
 then. Inbound message cost is set by the carrier and cannot be bounded here.
 
+Twilio delivers webhooks at least once: it retries after 5xx responses and
+connection failures, and a retry of a delivery whose 200 response was lost would
+otherwise send the user a second, possibly different paid reply. The webhook caches
+each successful reply by its `MessageSid` (four-hour TTL, oldest entries evicted past
+10,000) and answers a redelivery with the identical response. A redelivery never
+consumes reply-throttle budget, because it is the same logical message. Failed
+deliveries (4xx/5xx) are never cached, so a retry after an outage is processed fresh
+and the sender still gets help. The cache is per process like the other development
+stores; a multi-instance deployment needs a shared one before launch.
+
 ## Opt-out and help keywords
 
 A message that is only an opt-out word (`STOP`, `STOPALL`, `UNSUBSCRIBE`, `CANCEL`, `END`,
