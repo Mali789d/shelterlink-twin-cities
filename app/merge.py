@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 from .data import MAX_SNAPSHOT_BYTES, load_resources
+from .duplicates import find_possible_duplicates
 
 POLICIES = ("reject", "replace", "keep")
 
@@ -43,12 +44,20 @@ def merge_resources(base, candidate, on_conflict="reject") -> dict:
             added.append(resource.id)
         elif on_conflict == "keep":
             skipped.append(resource.id)
+    # Same-ID conflicts are loud, but a provider re-export can also carry the
+    # same real-world site under a new ID. Flag heuristic look-alikes touching
+    # the records this merge adds or replaces; the operator decides, the merge
+    # never blocks on a heuristic. Pre-existing pairs stay out of this report.
+    changed_ids = set(added) | set(replaced)
+    introduced = [flag for flag in find_possible_duplicates(merged)["flags"]
+                  if changed_ids & set(flag["ids"])]
     return {
         "notice": NOTICE,
         "on_conflict": on_conflict,
         "added": sorted(added),
         "replaced": sorted(replaced),
         "skipped": sorted(skipped),
+        "possible_duplicates": introduced,
         "resources": merged,
     }
 

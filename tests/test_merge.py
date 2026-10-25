@@ -125,3 +125,66 @@ def test_cli_merge_round_trip(tmp_path):
     report = json.loads(result.stdout)
     assert report["added"] == ["hc-102"] and report["resource_count"] == 2
     assert output.exists()
+
+
+def test_merge_flags_look_alikes_introduced_by_the_candidate(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource(phone="(612) 555-0100"))
+    candidate = write_snapshot(tmp_path / "candidate.json",
+                               resource("hc-102", "Second Site", phone="6125550100",
+                                        latitude=45.05, longitude=-93.30))
+    report = merge_files(base, candidate, tmp_path / "merged.json")
+    assert report["possible_duplicates"] == [
+        {"ids": ["hc-101", "hc-102"], "rules": ["same_phone"]}]
+
+
+def test_merge_flags_introduced_name_and_location_look_alikes(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource())
+    drifted = resource("hc-103", "Hope  Center", latitude=44.98001, longitude=-93.27001)
+    candidate = write_snapshot(tmp_path / "candidate.json", drifted)
+    report = merge_files(base, candidate, tmp_path / "merged.json")
+    flags = report["possible_duplicates"]
+    assert [flag["ids"] for flag in flags] == [["hc-101", "hc-103"]]
+    assert "same_name" in flags[0]["rules"] and "same_location" in flags[0]["rules"]
+
+
+def test_merge_leaves_pre_existing_look_alike_pairs_out_of_the_report(tmp_path):
+    twin = resource("hc-102", "Hope Center Twin")
+    base = write_snapshot(tmp_path / "base.json", resource(), twin)
+    candidate = write_snapshot(tmp_path / "candidate.json",
+                               resource("hc-103", "Unrelated Site",
+                                        latitude=45.05, longitude=-93.30))
+    report = merge_files(base, candidate, tmp_path / "merged.json")
+    assert report["possible_duplicates"] == []
+
+
+def test_merge_without_look_alikes_reports_no_duplicates(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource())
+    candidate = write_snapshot(tmp_path / "candidate.json",
+                               resource("hc-102", "Second Site",
+                                        latitude=45.05, longitude=-93.30))
+    report = merge_files(base, candidate, tmp_path / "merged.json")
+    assert report["possible_duplicates"] == []
+
+
+def test_replaced_records_participate_in_duplicate_checks(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource(),
+                          resource("hc-102", "Meal Site", category="meal",
+                                   address="200 Example Ave, Minneapolis",
+                                   latitude=45.01, longitude=-93.29))
+    renamed = resource("hc-102", "Hope Center", category="meal",
+                       address="200 Example Ave, Minneapolis",
+                       latitude=45.01, longitude=-93.29)
+    candidate = write_snapshot(tmp_path / "candidate.json", renamed)
+    report = merge_files(base, candidate, tmp_path / "merged.json",
+                         on_conflict="replace")
+    assert report["replaced"] == ["hc-102"]
+    assert report["possible_duplicates"] == [
+        {"ids": ["hc-101", "hc-102"], "rules": ["same_name"]}]
+
+
+def test_merge_reports_no_contact_details_in_duplicate_flags(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource(phone="(612) 555-0100"))
+    candidate = write_snapshot(tmp_path / "candidate.json",
+                               resource("hc-102", "Second Site", phone="6125550100"))
+    report = merge_files(base, candidate, tmp_path / "merged.json")
+    assert "5550100" not in json.dumps(report["possible_duplicates"])

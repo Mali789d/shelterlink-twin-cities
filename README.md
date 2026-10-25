@@ -234,14 +234,21 @@ history records operator review events only - not provider verification or publi
 to a base snapshot. Duplicate IDs reject loudly by default so a provider re-export cannot
 silently duplicate or overwrite entries; `--on-conflict replace` applies candidate records
 and lists every replaced ID, and `--on-conflict keep` retains the base records and lists
-every skip. Merging changes no record - each keeps its own provenance and sample flag -
-and the merged output remains review input for audit, history and export, not a verified
-or published directory.
+every skip. The report also lists heuristic look-alikes the merge introduces - added
+or replaced records sharing a normalized phone, punctuation-insensitive name or
+building coordinates with another record - using the same deterministic rules as the
+duplicates tool. These flags are review hints scoped to what changed: pre-existing
+pairs stay out of the report, and the merge never blocks on a heuristic. Merging
+changes no record - each keeps its own provenance and sample flag - and the merged
+output remains review input for audit, history and export, not a verified or
+published directory.
 
 `python -m app.duplicates reviewed-resources.json` flags possible duplicate records
 for human review. Exact-ID deduplication in merge.py cannot catch provider exports that
-list the same site twice under different formatting, so this flags pairs sharing a
-normalized phone, a punctuation-insensitive name, or coordinates inside one building.
+list the same site twice under different formatting; merge reports the look-alikes a
+candidate introduces, and this audits a whole snapshot with the same rules, flagging
+pairs sharing a normalized phone, a punctuation-insensitive name, or coordinates
+inside one building.
 The flags are deterministic review hints only - they never merge records, never pick a
 winner, catch formatting drift rather than naming variants, and report record IDs and
 rules only, so no contact details leave the snapshot.
