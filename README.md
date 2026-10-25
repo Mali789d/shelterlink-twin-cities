@@ -131,11 +131,13 @@ timeout also trigger a fresh attempt), and every attempt for the same inbound
 message carries the same `MessageSid`. The webhook caches each successful reply by
 `MessageSid` (four-hour TTL, oldest entries evicted past 10,000), bound to the
 sender and body of the original request, and answers a redelivery with the
-identical response. That gives exactly-once processing per process within the
-cache window: one computation, one reply-throttle slot and one response body per
-message. The lookup-to-store path is synchronous, so redeliveries cannot
-interleave inside one process; failed deliveries (4xx/5xx) are never cached, so a
-retry after an outage is processed fresh and the sender still gets help.
+identical response. While an entry lives, each message is processed once per
+process: one computation, one reply-throttle slot and one response body. Signature
+verification always runs before the cache is consulted - message fields match a
+request for replay but never authenticate it - and the lookup-to-store path is
+synchronous, so redeliveries cannot interleave inside one process. Failed
+deliveries (4xx/5xx) are never cached, so a retry after an outage is processed
+fresh and the sender still gets help.
 
 This is not exactly-once outbound SMS, which no application cache can provide:
 Twilio sends a reply for every TwiML response it processes and does not dedupe

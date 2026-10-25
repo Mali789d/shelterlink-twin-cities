@@ -7,7 +7,7 @@ every attempt of the same inbound message carries the same ``MessageSid``.
 This module caches each successful reply so a redelivery returns the
 identical response instead of being processed again.
 
-What this guarantees, per process, within the cache window:
+What the cache provides, per process, while an entry lives:
 
 - one computation per message: geocoding, search and consent work run once;
 - one reply-throttle slot per message: redeliveries never double-spend budget;
@@ -23,7 +23,9 @@ keep them small by responding well inside Twilio's 15-second read timeout.
 
 Replays are bound to the sender and body of the original request: a request
 carrying a known ``MessageSid`` with different content is processed fresh,
-never answered with someone else's cached reply. Entries expire after four
+never answered with someone else's cached reply. This is request matching, not
+authentication: the webhook's normal signature verification always runs before
+the cache is consulted. Entries expire after four
 hours, far beyond Twilio's seconds-long automatic retry window, and the
 oldest entries are evicted past 10,000 so the cache cannot become a memory
 target. Failed deliveries (4xx/5xx) are never cached, so a retry after an

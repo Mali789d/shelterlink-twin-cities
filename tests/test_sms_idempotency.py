@@ -1,6 +1,6 @@
 """Twilio redeliveries replay the cached response instead of being processed again.
 
-The cache gives exactly-once processing per process within its window; it
+While an entry lives, each message is processed once per process; the cache
 cannot guarantee exactly-once outbound SMS, which is provider-side behavior.
 """
 import pytest
@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app.idempotency import ReplyCache
+from app.security import compute_signature
 
 
 def post_sms(body="55415 shelter", sender="+15555550100", sid="SM1000000000000000000000000000001"):
@@ -128,3 +129,31 @@ def test_consent_outage_response_is_never_cached(monkeypatch):
 class _UnavailableStore:
     def __init__(self):
         raise RuntimeError("consent storage down")
+
+
+TOKEN = "idempotency-test-token"
+
+
+def signed_post(data, token=TOKEN):
+    signature = compute_signature(token, "https://sms.shelterlink.example/sms", data)
+    return TestClient(main.app).post("/sms", data=data,
+                                     headers={"X-Twilio-Signature": signature})
+
+
+@pytest.fixture
+def signed_env(monkeypatch):
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", TOKEN)
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://sms.shelterlink.example")
+
+
+def test_cache_never_bypasses_signature_verification(signed_env):
+    data = {"Body": "55415 shelter", "From": "+15555550720",
+            "MessageSid": "SM3000000000000000000000000000001"}
+    first = signed_post(data)
+    assert first.status_code == 200 and "<Message>" in first.text
+    # The same triple without a valid signature is rejected, never replayed:
+    # message fields match a cache entry but do not authenticate the request.
+    assert TestClient(main.app).post("/sms", data=data).status_code == 403
+    assert signed_post(data, token="wrong-token").status_code == 403
+    # A properly signed redelivery still replays the cached response.
+    assert signed_post(data).text == first.text

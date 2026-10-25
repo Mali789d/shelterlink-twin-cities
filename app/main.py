@@ -129,26 +129,8 @@ def search_resources(
 @app.post("/sms")
 async def sms(request: Request) -> Response:
     form = await read_sms_form(request)
-    message_sid = str(form.get("MessageSid") or "")
-    sender = str(form.get("From") or "")
-    body = str(form.get("Body") or "")
-    if message_sid:
-        cached = reply_cache.get(message_sid, sender, body)
-        if cached is not None:
-            # A Twilio redelivery of a request already answered: replay the
-            # identical response instead of computing the message again.
-            return Response(cached, media_type="application/xml")
-    response = respond_to_sms_form(request, form)
-    if message_sid and response.status_code == 200:
-        # Only successful replies are cached: a redelivery after a 4xx/5xx is
-        # processed fresh so the sender still gets help once the outage clears.
-        # The lookup-to-store path is synchronous, so same-SID requests cannot
-        # interleave inside this process.
-        reply_cache.put(message_sid, sender, body, response.body.decode("utf-8"))
-    return response
-
-
-def respond_to_sms_form(request: Request, form) -> Response:
+    # Signature verification always runs first: message fields key the reply
+    # cache for replay matching but never authenticate a request.
     params = {key: form.getlist(key) for key in form.keys()}
     verdict = WebhookSecurity.from_env().check(
         str(request.url), params, request.headers.get("X-Twilio-Signature")
@@ -158,6 +140,26 @@ def respond_to_sms_form(request: Request, form) -> Response:
     if verdict is Verdict.MISCONFIGURED:
         return Response("SMS webhook is not configured", status_code=503, media_type="text/plain")
 
+    message_sid = str(form.get("MessageSid") or "")
+    sender = str(form.get("From") or "")
+    body = str(form.get("Body") or "")
+    if message_sid:
+        cached = reply_cache.get(message_sid, sender, body)
+        if cached is not None:
+            # A verified redelivery of a request already answered: replay the
+            # identical response instead of computing the message again.
+            return Response(cached, media_type="application/xml")
+    response = respond_to_sms_form(form)
+    if message_sid and response.status_code == 200:
+        # Only successful replies are cached: a redelivery after a 4xx/5xx is
+        # processed fresh so the sender still gets help once the outage clears.
+        # The lookup-to-store path is synchronous, so same-SID requests cannot
+        # interleave inside this process.
+        reply_cache.put(message_sid, sender, body, response.body.decode("utf-8"))
+    return response
+
+
+def respond_to_sms_form(form) -> Response:
     body = str(form.get("Body") or "")
     sender = str(form.get("From") or "")
     if not sender:
