@@ -22,6 +22,24 @@ from pydantic import ValidationError
 from .data import MAX_SNAPSHOT_BYTES, unique_object
 from .hours_text import parse_hours_text
 from .models import Resource
+from .zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
+
+# A provider row plotted far outside the metro is almost always a data error
+# (swapped or wrong-state coordinates), and a Twin Cities finder must never send
+# someone to it. Bounds derive from the ZIP centroids the directory actually
+# covers, so a coverage change moves the service area with it.
+SERVICE_AREA_MARGIN_DEGREES = 0.15  # about ten miles past the outermost covered ZIP centroid
+_latitudes = [latitude for latitude, _ in TWIN_CITIES_ZIP_CENTROIDS.values()]
+_longitudes = [longitude for _, longitude in TWIN_CITIES_ZIP_CENTROIDS.values()]
+SERVICE_AREA_MIN_LATITUDE = min(_latitudes) - SERVICE_AREA_MARGIN_DEGREES
+SERVICE_AREA_MAX_LATITUDE = max(_latitudes) + SERVICE_AREA_MARGIN_DEGREES
+SERVICE_AREA_MIN_LONGITUDE = min(_longitudes) - SERVICE_AREA_MARGIN_DEGREES
+SERVICE_AREA_MAX_LONGITUDE = max(_longitudes) + SERVICE_AREA_MARGIN_DEGREES
+
+
+def within_service_area(latitude: float, longitude: float) -> bool:
+    return (SERVICE_AREA_MIN_LATITUDE <= latitude <= SERVICE_AREA_MAX_LATITUDE
+            and SERVICE_AREA_MIN_LONGITUDE <= longitude <= SERVICE_AREA_MAX_LONGITUDE)
 
 
 def _read_json_array(path: Path, label: str):
@@ -121,6 +139,10 @@ def ingest_records(raw_records, mapping: dict[str, str]) -> dict:
             rejections.append({"index": index, "record_id": mapped.get("id"),
                                "errors": [f"{'.'.join(str(part) for part in issue['loc'])}: "
                                           f"{issue['msg']}" for issue in error.errors()]})
+            continue
+        if not within_service_area(resource.latitude, resource.longitude):
+            rejections.append({"index": index, "record_id": resource.id,
+                               "errors": ["coordinates outside Twin Cities service area"]})
             continue
         if resource.id in seen_ids:
             rejections.append({"index": index, "record_id": resource.id,

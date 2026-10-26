@@ -206,3 +206,46 @@ def test_cli_accepts_a_csv_export(tmp_path):
     report = json.loads(result.stdout)
     assert report["candidate_count"] == 1 and report["rejection_count"] == 0
     assert [item.id for item in load_resources(output)] == ["hc-101"]
+
+
+def test_out_of_area_coordinates_reject_with_reason_and_no_leaked_values():
+    from app.ingest import within_service_area
+    far = provider_record(ProviderID="hc-103", Lat=46.7867, Lng=-92.1005)  # Duluth
+    report = ingest_records([provider_record(), far], MAPPING)
+    assert [item.id for item in report["candidates"]] == ["hc-101"]
+    (rejection,) = report["rejections"]
+    assert rejection["record_id"] == "hc-103"
+    assert rejection["errors"] == ["coordinates outside Twin Cities service area"]
+    assert "46.7867" not in json.dumps(rejection) and "Duluth" not in json.dumps(rejection)
+    assert not within_service_area(46.7867, -92.1005)
+
+
+def test_out_of_area_rejection_does_not_consume_the_id():
+    far = provider_record(Lat=47.5)
+    valid = provider_record()
+    report = ingest_records([far, valid], MAPPING)
+    assert [item.id for item in report["candidates"]] == ["hc-101"]
+    assert report["rejections"][0]["errors"] == ["coordinates outside Twin Cities service area"]
+
+
+def test_service_area_bounds_follow_covered_zip_centroids():
+    from app.ingest import (SERVICE_AREA_MARGIN_DEGREES, SERVICE_AREA_MAX_LATITUDE,
+                            SERVICE_AREA_MAX_LONGITUDE, SERVICE_AREA_MIN_LATITUDE,
+                            SERVICE_AREA_MIN_LONGITUDE, within_service_area)
+    from app.zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
+    # Every covered ZIP centroid is inside the service area by construction.
+    assert all(within_service_area(lat, lon)
+               for lat, lon in TWIN_CITIES_ZIP_CENTROIDS.values())
+    north = SERVICE_AREA_MAX_LATITUDE - SERVICE_AREA_MARGIN_DEGREES / 2
+    south = SERVICE_AREA_MIN_LATITUDE + SERVICE_AREA_MARGIN_DEGREES / 2
+    west = SERVICE_AREA_MIN_LONGITUDE + SERVICE_AREA_MARGIN_DEGREES / 2
+    east = SERVICE_AREA_MAX_LONGITUDE - SERVICE_AREA_MARGIN_DEGREES / 2
+    center_lat = (SERVICE_AREA_MIN_LATITUDE + SERVICE_AREA_MAX_LATITUDE) / 2
+    center_lon = (SERVICE_AREA_MIN_LONGITUDE + SERVICE_AREA_MAX_LONGITUDE) / 2
+    assert within_service_area(north, center_lon) and within_service_area(south, center_lon)
+    assert within_service_area(center_lat, west) and within_service_area(center_lat, east)
+    # Just outside the margin on each side is rejected.
+    assert not within_service_area(SERVICE_AREA_MAX_LATITUDE + 0.01, center_lon)
+    assert not within_service_area(SERVICE_AREA_MIN_LATITUDE - 0.01, center_lon)
+    assert not within_service_area(center_lat, SERVICE_AREA_MIN_LONGITUDE - 0.01)
+    assert not within_service_area(center_lat, SERVICE_AREA_MAX_LONGITUDE + 0.01)
