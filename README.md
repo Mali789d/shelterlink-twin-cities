@@ -210,7 +210,13 @@ static directory is an alternative under consideration, not an approved or publi
 replacement yet. The existing SMS code remains a prototype.
 
 `python -m app.ingest raw-export.json field-mapping.json candidate.json` turns a
-provider's raw JSON export into a validated candidate snapshot. The mapping file is an
+provider's raw export into a validated candidate snapshot. The source is a JSON array
+of records or, by file extension, a `.csv` with a header row - the format county and
+211 exports actually arrive in. CSV values are all text, so coordinates, hours and
+booleans face the same per-record validation, `is_sample` can never be asserted from
+a CSV row, and structural problems fail the whole file loudly instead of guessing:
+duplicate or blank column names would silently drop a provider field, and a ragged
+row means a broken export. The mapping file is an
 explicit object of resource field to provider field; a typo like `addres` fails loudly
 instead of silently dropping data. Each record validates on its own, so one dirty row
 rejects itself with a reason instead of failing the batch, duplicate IDs reject the

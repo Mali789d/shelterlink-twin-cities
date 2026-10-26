@@ -10,6 +10,8 @@ safe default unless a record asserts it explicitly, and the candidate file feeds
 same offline review tools (audit, compare, export) as any other snapshot.
 """
 import argparse
+import csv
+import io
 import json
 import os
 import tempfile
@@ -31,6 +33,49 @@ def _read_json_array(path: Path, label: str):
     if not isinstance(data, list):
         raise ValueError(f"{label} must be a JSON array")
     return data
+
+
+def _read_csv_records(path: Path, label: str):
+    """CSV with a header row: the format county and 211 exports actually arrive in.
+
+    Every value is text, so structured fields (coordinates, hours, booleans) face
+    the same per-record validation as JSON - and ``is_sample`` can never be
+    asserted from a CSV row. Structural problems fail the whole file loudly
+    instead of guessing: duplicate or blank column names would silently drop a
+    provider field, and a ragged row means a broken export.
+    """
+    with Path(path).open("rb") as file:
+        raw = file.read(MAX_SNAPSHOT_BYTES + 1)
+    if len(raw) > MAX_SNAPSHOT_BYTES:
+        raise ValueError(f"{label} exceeds byte limit")
+    # utf-8-sig strips the byte-order mark some spreadsheet exports carry.
+    reader = csv.reader(io.StringIO(raw.decode("utf-8-sig")))
+    header = next(reader, None)
+    if header is None:
+        raise ValueError(f"{label} must be a CSV with a header row")
+    if any(not column.strip() for column in header):
+        raise ValueError(f"{label} has a blank column name")
+    if len(header) != len(set(header)):
+        raise ValueError(f"{label} has duplicate column names")
+    records = []
+    for line_number, row in enumerate(reader, start=2):
+        if not row:  # a truly blank line is an export artifact, not a record
+            continue
+        if len(row) != len(header):
+            raise ValueError(f"{label} row {line_number} has {len(row)} fields, "
+                             f"expected {len(header)}")
+        records.append(dict(zip(header, row)))
+    if not records:
+        raise ValueError(f"{label} has no records")
+    return records
+
+
+def read_provider_records(path: Path, label: str = "provider export"):
+    """A provider export as records: JSON array, or CSV chosen by file extension."""
+    path = Path(path)
+    if path.suffix.lower() == ".csv":
+        return _read_csv_records(path, label)
+    return _read_json_array(path, label)
 
 
 def load_mapping(path: Path) -> dict[str, str]:
@@ -112,12 +157,13 @@ def write_candidate(resources: list[Resource], output: Path, inputs: list[Path])
 def main():
     parser = argparse.ArgumentParser(
         description="Validate a provider export into a candidate snapshot for review")
-    parser.add_argument("source", type=Path, help="provider export: a JSON array of records")
+    parser.add_argument("source", type=Path,
+                        help="provider export: a JSON array of records, or a .csv with header row")
     parser.add_argument("mapping", type=Path, help="JSON object of resource field: provider field")
     parser.add_argument("output", type=Path, help="candidate snapshot path (reviewed separately)")
     args = parser.parse_args()
     mapping = load_mapping(args.mapping)
-    report = ingest_records(_read_json_array(args.source, "provider export"), mapping)
+    report = ingest_records(read_provider_records(args.source), mapping)
     write_candidate(report["candidates"], args.output, [args.source, args.mapping])
     print(json.dumps({
         "notice": "Candidate only. Not provider verification or publication; review before use.",
