@@ -18,6 +18,7 @@ def audit_resources(resources, at: datetime) -> dict:
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate resource IDs")
     sample, stale, future = [], [], []
+    walk_in_only, no_hours = [], []
     for item in checked:
         if item.is_sample:
             sample.append(item.id)
@@ -25,6 +26,11 @@ def audit_resources(resources, at: datetime) -> dict:
             future.append(item.id)
         elif resource_freshness(item, at) is Freshness.STALE:
             stale.append(item.id)
+        if item.phone is None and item.website is None:
+            # No call or click route: the listing only helps someone who can walk in.
+            walk_in_only.append(item.id)
+        if not item.hours:
+            no_hours.append(item.id)
     passes = bool(checked) and not (sample or stale or future)
     # A fresh snapshot is only valid until its oldest record reaches the age limit.
     # Use UTC before adding the duration so a DST change cannot extend the window.
@@ -39,6 +45,10 @@ def audit_resources(resources, at: datetime) -> dict:
         "resource_count": len(checked),
         "blockers": {"empty": not checked, "sample_ids": sorted(sample),
                      "stale_ids": sorted(stale), "future_ids": sorted(future)},
+        # Review warnings, not blockers: they never gate export validation, and
+        # keys and values carry IDs only so no contact details leave the report.
+        "warnings": {"walk_in_only_ids": sorted(walk_in_only),
+                     "no_hours_ids": sorted(no_hours)},
         "export_validation_passes": passes,
         "provider_verification_confirmed": False,
     }

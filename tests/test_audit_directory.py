@@ -83,3 +83,36 @@ def test_cli_does_not_write_source_or_other_files(tmp_path):
     assert not report["provider_verification_confirmed"]
     assert source.read_bytes() == before
     assert list(tmp_path.iterdir()) == [source]
+
+
+def test_reachability_and_hours_warnings_sorted_ids_only():
+    base = resource("full")
+    data = [
+        resource("z-walkin", phone=None, website=None),
+        resource("b-nocontact-nohours", phone=None, website=None, hours={}),
+        resource("a-nohours", hours={}),
+        base,
+    ]
+    report = audit_resources(data, AT)
+    assert report["warnings"] == {"walk_in_only_ids": ["b-nocontact-nohours", "z-walkin"],
+                                  "no_hours_ids": ["a-nohours", "b-nocontact-nohours"]}
+    # Warnings never gate export validation.
+    assert report["export_validation_passes"]
+    # Warning keys and values must not leak contact fields into the report.
+    assert "address" not in json.dumps(report)
+    assert "phone" not in json.dumps(report)
+    assert "website" not in json.dumps(report)
+
+
+def test_phone_or_website_alone_is_reachable_and_hours_present_is_no_warning():
+    data = [resource("a", website=None),
+            resource("b", phone=None, website="https://example.com/b"),
+            resource("c", phone=None, website=None, hours={1: [("09:00", "17:00")]})]
+    report = audit_resources(data, AT)
+    assert report["warnings"] == {"walk_in_only_ids": ["c"], "no_hours_ids": []}
+
+
+def test_empty_directory_has_no_warnings():
+    report = audit_resources([], AT)
+    assert report["warnings"] == {"walk_in_only_ids": [], "no_hours_ids": []}
+    assert not report["export_validation_passes"]
