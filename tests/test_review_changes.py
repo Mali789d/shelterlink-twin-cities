@@ -74,3 +74,53 @@ def test_cli_is_read_only_and_emits_no_raw_contact_values(tmp_path):
     assert report["changed"] == [{"id": "fixture", "fields": ["phone"]}]
     assert "555-0100" not in result.stdout
     assert (first.read_bytes(), second.read_bytes()) == before
+
+
+def test_lost_contact_fields_and_hours_flagged_without_values():
+    resource = item().model_copy(update={"website": "https://example.org/fixture"})
+    stripped = resource.model_copy(update={"phone": None, "website": None, "hours": {}})
+    report = compare_resources([resource], [stripped])
+    assert report["regressions"] == [{
+        "id": "fixture", "lost_fields": ["hours", "phone", "website"],
+        "returned_to_sample": False, "verification_moved_backwards": False}]
+    dump = json.dumps(report)
+    assert resource.phone not in dump
+    assert str(resource.website) not in dump
+
+
+def test_gaining_fields_is_a_change_not_a_regression():
+    resource = item().model_copy(update={"phone": None, "hours": {}})
+    enriched = resource.model_copy(update={"phone": "555-0100",
+                                           "hours": {0: [("08:00", "17:00")]}})
+    report = compare_resources([resource], [enriched])
+    assert report["changed"] == [{"id": "fixture", "fields": ["hours", "phone"]}]
+    assert report["regressions"] == []
+
+
+def test_verification_moving_backwards_is_flagged_across_timezone_offsets():
+    resource = item().model_copy(update={"verified_at": "2026-10-20T12:00:00+00:00"})
+    older = resource.model_copy(update={"verified_at": "2026-10-20T06:59:59-05:00"})
+    report = compare_resources([resource], [older])
+    assert report["regressions"] == [{
+        "id": "fixture", "lost_fields": [],
+        "returned_to_sample": False, "verification_moved_backwards": True}]
+    # The same instant written with a different offset is not a regression.
+    same = resource.model_copy(update={"verified_at": "2026-10-20T07:00:00-05:00"})
+    assert compare_resources([resource], [same])["regressions"] == []
+
+
+def test_returned_to_sample_flagged_and_verified_stays_quiet():
+    verified = item().model_copy(update={"is_sample": False})
+    resampled = verified.model_copy(update={"is_sample": True})
+    report = compare_resources([verified], [resampled])
+    assert report["regressions"] == [{
+        "id": "fixture", "lost_fields": [],
+        "returned_to_sample": True, "verification_moved_backwards": False}]
+    # A record leaving sample status is progress, never a regression.
+    assert compare_resources([resampled], [verified])["regressions"] == []
+
+
+def test_added_and_removed_records_produce_no_regressions():
+    report = compare_resources([item("gone")], [item("new")])
+    assert report["regressions"] == []
+    assert compare_resources([], [])["regressions"] == []
