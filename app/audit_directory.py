@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .data import load_resources
 from .freshness import DEFAULT_MAX_AGE, Freshness, resource_freshness
+from .ingest import within_service_area
 from .models import Resource
 
 
@@ -18,7 +19,7 @@ def audit_resources(resources, at: datetime) -> dict:
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate resource IDs")
     sample, stale, future = [], [], []
-    walk_in_only, no_hours = [], []
+    walk_in_only, no_hours, out_of_area = [], [], []
     for item in checked:
         if item.is_sample:
             sample.append(item.id)
@@ -31,6 +32,10 @@ def audit_resources(resources, at: datetime) -> dict:
             walk_in_only.append(item.id)
         if not item.hours:
             no_hours.append(item.id)
+        if not within_service_area(item.latitude, item.longitude):
+            # Merged or hand-edited snapshots bypass ingestion's service-area
+            # guard, so the review flags out-of-area listings here instead.
+            out_of_area.append(item.id)
     passes = bool(checked) and not (sample or stale or future)
     # A fresh snapshot is only valid until its oldest record reaches the age limit.
     # Use UTC before adding the duration so a DST change cannot extend the window.
@@ -48,7 +53,8 @@ def audit_resources(resources, at: datetime) -> dict:
         # Review warnings, not blockers: they never gate export validation, and
         # keys and values carry IDs only so no contact details leave the report.
         "warnings": {"walk_in_only_ids": sorted(walk_in_only),
-                     "no_hours_ids": sorted(no_hours)},
+                     "no_hours_ids": sorted(no_hours),
+                     "out_of_area_ids": sorted(out_of_area)},
         "export_validation_passes": passes,
         "provider_verification_confirmed": False,
     }

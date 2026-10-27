@@ -95,7 +95,8 @@ def test_reachability_and_hours_warnings_sorted_ids_only():
     ]
     report = audit_resources(data, AT)
     assert report["warnings"] == {"walk_in_only_ids": ["b-nocontact-nohours", "z-walkin"],
-                                  "no_hours_ids": ["a-nohours", "b-nocontact-nohours"]}
+                                  "no_hours_ids": ["a-nohours", "b-nocontact-nohours"],
+                                  "out_of_area_ids": []}
     # Warnings never gate export validation.
     assert report["export_validation_passes"]
     # Warning keys and values must not leak contact fields into the report.
@@ -109,10 +110,36 @@ def test_phone_or_website_alone_is_reachable_and_hours_present_is_no_warning():
             resource("b", phone=None, website="https://example.com/b"),
             resource("c", phone=None, website=None, hours={1: [("09:00", "17:00")]})]
     report = audit_resources(data, AT)
-    assert report["warnings"] == {"walk_in_only_ids": ["c"], "no_hours_ids": []}
+    assert report["warnings"] == {"walk_in_only_ids": ["c"], "no_hours_ids": [],
+                                  "out_of_area_ids": []}
 
 
 def test_empty_directory_has_no_warnings():
     report = audit_resources([], AT)
-    assert report["warnings"] == {"walk_in_only_ids": [], "no_hours_ids": []}
+    assert report["warnings"] == {"walk_in_only_ids": [], "no_hours_ids": [],
+                                  "out_of_area_ids": []}
     assert not report["export_validation_passes"]
+
+
+def test_out_of_area_listings_warn_ids_only_without_gating():
+    data = [resource("b-far", latitude=46.7867, longitude=-92.1005),
+            resource("a-near"),
+            resource("c-edge", latitude=45.30, longitude=-93.10)]
+    report = audit_resources(data, AT)
+    assert report["warnings"]["out_of_area_ids"] == ["b-far"]
+    assert report["warnings"]["walk_in_only_ids"] == []
+    assert report["export_validation_passes"]
+    assert "address" not in json.dumps(report)
+
+
+def test_every_covered_zip_centroid_passes_without_area_warning():
+    from app.zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
+    data = [resource(f"zip-{code}", latitude=lat, longitude=lon)
+            for code, (lat, lon) in TWIN_CITIES_ZIP_CENTROIDS.items()]
+    report = audit_resources(data, AT)
+    assert report["warnings"]["out_of_area_ids"] == []
+
+
+def test_empty_directory_has_empty_area_warning():
+    assert audit_resources([], AT)["warnings"] == {
+        "walk_in_only_ids": [], "no_hours_ids": [], "out_of_area_ids": []}
