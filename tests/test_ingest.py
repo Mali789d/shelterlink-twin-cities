@@ -249,3 +249,32 @@ def test_service_area_bounds_follow_covered_zip_centroids():
     assert not within_service_area(SERVICE_AREA_MIN_LATITUDE - 0.01, center_lon)
     assert not within_service_area(center_lat, SERVICE_AREA_MIN_LONGITUDE - 0.01)
     assert not within_service_area(center_lat, SERVICE_AREA_MAX_LONGITUDE + 0.01)
+
+
+def test_unmapped_provider_columns_are_named_sorted_without_values():
+    report = ingest_records([provider_record()], MAPPING)
+    # BedsTotal and Notes are extra provider columns: ignored, but now visible.
+    assert report["unmapped_provider_fields"] == ["BedsTotal", "Notes"]
+    assert "call ahead" not in json.dumps(report["unmapped_provider_fields"])
+    assert "40" not in json.dumps(report["unmapped_provider_fields"])
+
+
+def test_unmapped_columns_unite_across_records_and_exclude_mapped_names():
+    first = provider_record()
+    second = provider_record(ProviderID="hc-102", Wheelchair="yes")
+    del second["Notes"]
+    report = ingest_records([first, second], MAPPING)
+    assert report["unmapped_provider_fields"] == ["BedsTotal", "Notes", "Wheelchair"]
+    # A fully mapped provider key never appears, even when present in the row.
+    assert "Lat" not in report["unmapped_provider_fields"]
+
+
+def test_unmapped_columns_empty_when_mapping_covers_every_column():
+    record = {source: value for source, value in provider_record().items()
+              if source in MAPPING.values()}
+    report = ingest_records([record], MAPPING)
+    assert report["unmapped_provider_fields"] == []
+    # Rejected and non-object records still report columns seen elsewhere.
+    mixed = ingest_records([record, "not-a-record",
+                            provider_record(ProviderID="hc-103")], MAPPING)
+    assert mixed["unmapped_provider_fields"] == ["BedsTotal", "Notes"]

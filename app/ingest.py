@@ -113,16 +113,24 @@ def load_mapping(path: Path) -> dict[str, str]:
 
 
 def ingest_records(raw_records, mapping: dict[str, str]) -> dict:
-    """Validate provider records individually; a bad row never fails or joins the batch."""
+    """Validate provider records individually; a bad row never fails or joins the batch.
+
+    The report also names every provider column the mapping never referenced.
+    A typo'd or incomplete mapping silently drops provider data, and column
+    names are metadata, not values, so listing them leaks no provider content.
+    """
     candidates: list[Resource] = []
     rejections: list[dict] = []
     seen_ids: set[str] = set()
+    mapped_sources = set(mapping.values())
+    unmapped: set[str] = set()
     for index, record in enumerate(raw_records):
         label = f"record {index}"
         if not isinstance(record, dict):
             rejections.append({"index": index, "record_id": None,
                                "errors": ["record must be a JSON object"]})
             continue
+        unmapped.update(key for key in record if key not in mapped_sources)
         mapped = {target: record[source] for target, source in mapping.items() if source in record}
         if isinstance(mapped.get("hours"), str):
             # Provider exports carry hours as text; parse strictly or reject the record.
@@ -150,7 +158,8 @@ def ingest_records(raw_records, mapping: dict[str, str]) -> dict:
             continue
         seen_ids.add(resource.id)
         candidates.append(resource)
-    return {"candidates": candidates, "rejections": rejections}
+    return {"candidates": candidates, "rejections": rejections,
+            "unmapped_provider_fields": sorted(unmapped)}
 
 
 def write_candidate(resources: list[Resource], output: Path, inputs: list[Path]) -> None:
@@ -192,6 +201,7 @@ def main():
         "candidate_count": len(report["candidates"]),
         "rejection_count": len(report["rejections"]),
         "rejections": report["rejections"],
+        "unmapped_provider_fields": report["unmapped_provider_fields"],
     }, ensure_ascii=False, indent=2))
 
 
