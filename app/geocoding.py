@@ -80,6 +80,10 @@ class DevelopmentGeocoder:
     }
 
     def geocode(self, location: str) -> tuple[float, float] | None:
+        # Same 100-character bound as web/zip-lookup.mjs lookupPlace: place
+        # text longer than that is rejected, not trimmed into a match.
+        if len(location) > 100:
+            return None
         return self.locations.get(normalize_place(location))
 
 
@@ -96,9 +100,13 @@ def normalize_place(text: str) -> str:
     return _STATE_SUFFIX.sub("", text).strip(" ,")
 
 
-# Explicit "latitude, longitude" text: decimal degrees, comma separated, in range.
+# Explicit "latitude, longitude" text: decimal degrees, comma separated, in
+# range. ASCII digits only, matching web/location-input.mjs parseCoordinates:
+# \d would also match Unicode decimal digits (float() parses those), so the SMS
+# geocoder would accept coordinates the web page rejects.
 _COORDINATES_PATTERN = re.compile(
-    r"^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*$"
+    r"^\s*([+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+))\s*,"
+    r"\s*([+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+))\s*$"
 )
 
 
