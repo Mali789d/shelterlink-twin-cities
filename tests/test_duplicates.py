@@ -101,3 +101,36 @@ def test_cli_round_trip(tmp_path):
 
 def test_name_normalization_keeps_distinct_names_distinct():
     assert normalized_name("Hope Center") != normalized_name("Hope Center North")
+
+
+def test_same_website_with_formatting_drift_is_flagged():
+    left = resource("a", "Alpha Shelter").model_copy(
+        update={"website": "https://www.example.org/hope/?utm_source=export#top"})
+    right = resource("b", "Bravo Shelter", latitude=44.95, longitude=-93.09).model_copy(
+        update={"website": "http://example.org/hope"})
+    report = find_possible_duplicates([left, right])
+    assert report["flags"] == [{"ids": ["a", "b"], "rules": ["same_website"]}]
+
+
+def test_distinct_program_pages_on_one_org_site_do_not_flag():
+    left = resource("a", "Alpha Shelter").model_copy(
+        update={"website": "https://example.org/alpha"})
+    right = resource("b", "Bravo Shelter", latitude=44.95, longitude=-93.09).model_copy(
+        update={"website": "https://example.org/bravo"})
+    assert find_possible_duplicates([left, right])["flags"] == []
+
+
+def test_missing_website_never_flags():
+    left = resource("a", "Alpha Shelter")
+    right = resource("b", "Bravo Shelter", latitude=44.95, longitude=-93.09)
+    assert find_possible_duplicates([left, right])["flags"] == []
+
+
+def test_website_rule_combines_with_other_rules_in_order():
+    left = resource("a", "Hope Center", phone="612-555-0100").model_copy(
+        update={"website": "https://example.org/hope"})
+    right = resource("b", "hope center", phone="(612) 555-0100").model_copy(
+        update={"website": "https://example.org/hope/"})
+    rules = find_possible_duplicates([left, right])["flags"][0]["rules"]
+    # Same default coordinates mean same_location fires too, listed last.
+    assert rules == ["same_phone", "same_name", "same_website", "same_location"]

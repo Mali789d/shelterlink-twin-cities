@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .data import load_resources
 from .search import distance_miles
@@ -36,8 +37,23 @@ def normalized_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
+def normalized_website(website) -> str | None:
+    """Host plus path: no scheme, www prefix, trailing slash, query or fragment.
+
+    Two exports of the same program page differ in exactly those parts. Keeping
+    the path means distinct program pages on one shared org site do not flag.
+    """
+    if website is None:
+        return None
+    parts = urlsplit(str(website))
+    host = parts.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host + parts.path.rstrip("/")
+
+
 def find_possible_duplicates(resources) -> dict:
-    """Pair up records that share a phone, a name, or a building's coordinates."""
+    """Pair up records that share a phone, name, website or building's coordinates."""
     flags = []
     ordered = sorted(resources, key=lambda item: item.id)
     for index, left in enumerate(ordered):
@@ -49,6 +65,10 @@ def find_possible_duplicates(resources) -> dict:
                 rules.append("same_phone")
             if normalized_name(left.name) == normalized_name(right.name):
                 rules.append("same_name")
+            left_site, right_site = (normalized_website(left.website),
+                                     normalized_website(right.website))
+            if left_site and left_site == right_site:
+                rules.append("same_website")
             if distance_miles(left.latitude, left.longitude,
                               right.latitude, right.longitude) <= SAME_BUILDING_MILES:
                 rules.append("same_location")
