@@ -1,3 +1,4 @@
+from app.geocoding import DevelopmentGeocoder, parse_coordinates
 from app.i18n import Language, parse_language, strip_language_directive
 from app.sms import parse_sms
 
@@ -40,3 +41,67 @@ def test_english_so_keeps_location_and_language():
     assert query is not None
     assert query.location == "55415"
     assert query.language == Language.ENGLISH
+
+
+# Every spelling parse_language accepts as a directive must also be the text
+# strip_language_directive removes. The two tokenize messages independently;
+# when they disagree, the leftover directive becomes the location and a valid
+# city answers "unknown location" in the sender's own language.
+DIRECTIVE_SPELLINGS = [
+    ("lang es", Language.SPANISH),
+    ("lang,es", Language.SPANISH),
+    ("lang, es", Language.SPANISH),
+    ("lang ,es", Language.SPANISH),
+    ("lang , es", Language.SPANISH),
+    ("lang,es,", Language.SPANISH),
+    ("LANG ES", Language.SPANISH),
+    ("lang  es", Language.SPANISH),
+    ("lang\tes", Language.SPANISH),
+    ("lang espanol", Language.SPANISH),
+    ("lang,espanol", Language.SPANISH),
+    ("lang español", Language.SPANISH),
+    ("lang so", Language.SOMALI),
+    ("lang,so", Language.SOMALI),
+    ("lang somali", Language.SOMALI),
+    ("lang en", Language.ENGLISH),
+]
+
+
+def test_directive_spellings_are_detected_and_removed_identically():
+    for spelling, language in DIRECTIVE_SPELLINGS:
+        text = f"{spelling} minneapolis"
+        assert parse_language(text) is language, spelling
+        assert strip_language_directive(text) == "minneapolis", spelling
+
+
+def test_directive_spellings_never_corrupt_the_sms_location():
+    for spelling, language in DIRECTIVE_SPELLINGS:
+        query = parse_sms(f"{spelling} minneapolis")
+        assert query is not None, spelling
+        assert query.location == "minneapolis", spelling
+        assert query.language is language, spelling
+
+
+def test_directive_only_message_asks_for_a_location():
+    # A bare directive has no location to find: answer with help, not "unknown".
+    for spelling, _language in DIRECTIVE_SPELLINGS:
+        assert parse_sms(spelling) is None, spelling
+
+
+def test_place_commas_survive_directive_stripping():
+    # Commas inside a place name are not directives: "St. Paul, MN" still
+    # resolves to the city through parse_sms and the geocoder.
+    query = parse_sms("st. paul, mn")
+    assert query is not None
+    assert DevelopmentGeocoder().geocode(query.location) is not None
+    assert query.language is Language.ENGLISH
+
+
+def test_texted_coordinates_keep_their_comma():
+    # Directive removal must not eat the comma "lat,lng" coordinates need.
+    query = parse_sms("shelter 44.9778,-93.2650")
+    assert query is not None
+    assert query.location == "44.9778,-93.2650"
+    spaced = parse_sms("shelter 44.9778, -93.2650")
+    assert spaced is not None
+    assert parse_coordinates(spaced.location) is not None

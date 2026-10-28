@@ -89,18 +89,32 @@ def parse_language(text: str) -> Language:
 
 
 def strip_language_directive(text: str) -> str:
+    # Tokens split on whitespace only: coordinates like "44.9,-93.2" keep the
+    # comma they need. The "lang" directive is the one form whose code can
+    # attach with a comma ("lang,es"): parse_language treats commas as
+    # separators and detects it, so it must be removed here too, or the
+    # leftover text becomes the location and a valid city answers "unknown
+    # location" in the sender's own language.
     tokens = text.split()
     cleaned: list[str] = []
     skip_next = False
     for index, token in enumerate(tokens):
+        lowered = token.lower()
         if skip_next:
+            # Commas-only filler between "lang" and its code ("lang , es")
+            # belongs to the directive; keep skipping until the code token.
+            if not token.strip(","):
+                continue
             skip_next = False
             continue
-        normalized = token.lower().strip(",")
-        if normalized == "lang" and index + 1 < len(tokens):
+        head, _, attached = lowered.partition(",")
+        is_directive = head == "lang" and (attached or index + 1 < len(tokens))
+        if is_directive:
+            if attached.strip(","):
+                continue  # "lang,es" carries its code in the same token
             skip_next = True
             continue
-        if normalized in WORD_ALIASES:
+        if lowered.strip(",") in WORD_ALIASES:
             continue
         cleaned.append(token)
     return " ".join(cleaned)
