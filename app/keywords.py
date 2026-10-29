@@ -42,8 +42,13 @@ class Keyword(str, Enum):
 
 
 def classify_keyword(body: str) -> tuple[Keyword, Language] | None:
-    """Match only when the whole message is a keyword, so '55415 end of block' still searches."""
-    word = re.sub(r"[^\w-]", "", body.strip().lower().replace(" ", ""))
+    """Match only when the whole message is a keyword, so '55415 end of block' still searches.
+
+    Punctuation, spaces and hyphens never change the match: "opt-out" and
+    "un-subscribe" are the same words as the listed "optout"/"unsubscribe",
+    and a sender trying to stop messages must actually stop receiving them.
+    """
+    word = re.sub(r"[^\w]", "", body.strip().lower())
     if word in OPT_OUT_WORDS:
         return Keyword.OPT_OUT, Language.ENGLISH
     if word in OPT_IN_WORDS:

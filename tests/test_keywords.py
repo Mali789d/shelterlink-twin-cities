@@ -86,3 +86,26 @@ def test_alto_silences_later_replies_for_that_number():
 def test_alto_inside_a_search_is_not_an_opt_out():
     # Whole-message rule: "alto" only opts out when it is the entire message.
     assert classify_keyword("alto 55415") is None
+
+
+@pytest.mark.parametrize("body", ["opt-out", "OPT-OUT", " Opt-Out. ", "un-subscribe",
+                                  "stop-all", "o-p-t-o-u-t"])
+def test_hyphenated_opt_out_variants(body):
+    # Hyphens and punctuation never change the word: a sender who texts
+    # "opt-out" is asking for exactly what "optout" asks for, and the program
+    # must stop replying either way.
+    assert classify_keyword(body) == (Keyword.OPT_OUT, Language.ENGLISH)
+
+
+def test_hyphenated_opt_out_silences_later_replies_for_that_number():
+    assert sms("OPT-OUT", sender="+16125550222").text == EMPTY
+    assert sms("55415 shelter", sender="+16125550222").text == EMPTY
+    assert "Nearest resources" in sms("55415 shelter", sender="+16125550199").text
+
+
+def test_hyphenated_variant_inside_a_search_is_not_an_opt_out():
+    # The whole-message rule still applies: a keyword buried in a search
+    # never opts the sender out.
+    assert classify_keyword("55401 opt-out") is None
+    assert classify_keyword("opt-out 55401") is None
+    assert classify_keyword("un-subscribe me from shelter alerts") is None
