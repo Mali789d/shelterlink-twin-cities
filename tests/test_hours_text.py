@@ -113,3 +113,54 @@ def test_ingest_leaves_structured_hours_untouched():
     report = _ingest_with_hours(structured)
     assert not report["rejections"]
     assert report["candidates"][0].hours == structured
+
+
+def test_same_day_reopen_intervals_in_one_segment():
+    # Real exports close and reopen within a day; the comma after a complete
+    # range starts another range for the same days.
+    assert parse_hours_text("Mon 9 AM-12 PM, 1 PM-5 PM") == {
+        0: [("09:00", "12:00"), ("13:00", "17:00")]}
+
+
+def test_reopen_intervals_apply_to_every_listed_day():
+    expected = {day: [("09:00", "12:00"), ("13:00", "17:00")] for day in range(5)}
+    assert parse_hours_text("Mon-Fri 9 AM-12 PM, 1 PM-5 PM") == expected
+    assert parse_hours_text("Daily 09:00-12:00, 13:00-17:00") == {
+        day: [("09:00", "12:00"), ("13:00", "17:00")] for day in range(7)}
+
+
+def test_reopen_intervals_mix_with_other_segments():
+    assert parse_hours_text("Mon 8 AM-9 AM, 5 PM-6 PM; Sat 10 AM-2 PM") == {
+        0: [("08:00", "09:00"), ("17:00", "18:00")], 5: [("10:00", "14:00")]}
+
+
+def test_comma_day_lists_still_parse_as_days():
+    # A comma after a day name lists days; a comma after a range lists ranges.
+    assert parse_hours_text("Mon, Wed 9 AM-5 PM") == {
+        0: [("09:00", "17:00")], 2: [("09:00", "17:00")]}
+    assert parse_hours_text("Mon, Wed 9 AM-12 PM, 1 PM-5 PM") == {
+        0: [("09:00", "12:00"), ("13:00", "17:00")],
+        2: [("09:00", "12:00"), ("13:00", "17:00")]}
+
+
+@pytest.mark.parametrize("text", [
+    "Mon 9 AM-5 PM, Wed 6 PM-8 PM",   # a day name is not a second range
+    "Mon 9 AM-12 PM, 1 PM",           # incomplete second range
+    "Mon 9 AM-12 PM, xyz",            # garbage after the comma
+    "Mon 5 PM-9 AM, 10 AM-11 AM",     # each range must end after it starts
+    "Mon 24:00-1 PM, 2 PM-3 PM",      # no range starts at 24:00
+])
+def test_malformed_second_ranges_reject(text):
+    with pytest.raises(ValueError):
+        parse_hours_text(text)
+
+
+def test_overlapping_reopen_intervals_fail_model_validation():
+    # The parser stays shape-only, like multi-segment hours; the model rejects
+    # same-day overlaps at ingestion.
+    parsed = parse_hours_text("Mon 9 AM-1 PM, 12 PM-5 PM")
+    (candidate,) = ingest_records([provider_record()], MAPPING)["candidates"]
+    record = candidate.model_dump(mode="json")
+    record["hours"] = {str(day): intervals for day, intervals in parsed.items()}
+    with pytest.raises(ValidationError):
+        Resource.model_validate(record)

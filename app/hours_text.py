@@ -25,9 +25,15 @@ _RANGE = re.compile(rf"^({_DAY})\s*(?:-|\u2013|\u2014|to)\s*({_DAY})$", re.IGNOR
 _TIME = re.compile(
     r"^(\d{1,2})(?::(\d{2}))?\s*(a\.?\s?m\.?|p\.?\s?m\.?)?$", re.IGNORECASE)
 _TIME_TOKEN = r"(?:\d{1,2}(?::\d{2})?\s*(?:a\.?\s?m\.?|p\.?\s?m\.?)?|noon|midnight)"
+# One or more comma-separated ranges for the same days: real exports close
+# and reopen within a day ("Mon 9 AM-12 PM, 1 PM-5 PM"), and the comma after a
+# complete range can only mean another range - day names never follow one.
+_TIME_RANGE = re.compile(
+    rf"^({_TIME_TOKEN})\s*(?:-|\u2013|\u2014|\bto\b)\s*({_TIME_TOKEN})$",
+    re.IGNORECASE)
+_TIME_RANGE_SOURCE = rf"{_TIME_TOKEN}\s*(?:-|\u2013|\u2014|\bto\b)\s*{_TIME_TOKEN}"
 _SEGMENT = re.compile(
-    rf"^(?P<days>.+?)\s+(?P<start>{_TIME_TOKEN})\s*"
-    rf"(?:-|\u2013|\u2014|\bto\b)\s*(?P<end>{_TIME_TOKEN})$",
+    rf"^(?P<days>.+?)\s+(?P<times>{_TIME_RANGE_SOURCE}(?:\s*,\s*{_TIME_RANGE_SOURCE})*)$",
     re.IGNORECASE)
 
 
@@ -89,6 +95,9 @@ def _parse_days(text: str) -> list[int]:
 def parse_hours_text(text: str) -> dict[int, list[tuple[str, str]]]:
     """Strictly parse text like "Mon-Fri 9 AM-5 PM; Sat 10 AM-2 PM" into model hours.
 
+    One segment may carry several comma-separated ranges for the same days
+    ("Mon 9 AM-12 PM, 1 PM-5 PM") when a site closes and reopens within a day.
+
     Raises ValueError with a reason for anything ambiguous or unrecognized -
     the caller rejects the record for human review rather than guessing.
     """
@@ -111,16 +120,24 @@ def parse_hours_text(text: str) -> dict[int, list[tuple[str, str]]]:
         days_text = time_match.group("days").strip(" ,")
         if not days_text:
             raise ValueError(f"segment {segment!r} does not name its days")
-        start = _parse_time(time_match.group("start"))
-        end = _parse_time(time_match.group("end"))
-        if start == "24:00":
-            raise ValueError("intervals cannot start at 24:00")
-        if end != "24:00" and end <= start:
-            raise ValueError(
-                f"interval {start}-{end} does not end after it starts; "
-                "split overnight hours by weekday")
+        intervals = []
+        for piece in time_match.group("times").split(","):
+            range_match = _TIME_RANGE.match(piece.strip())
+            if not range_match:
+                raise ValueError(
+                    f"segment {segment!r} has an unrecognized time range "
+                    f"{piece.strip()!r} (expected e.g. 9 AM-12 PM)")
+            start = _parse_time(range_match.group(1))
+            end = _parse_time(range_match.group(2))
+            if start == "24:00":
+                raise ValueError("intervals cannot start at 24:00")
+            if end != "24:00" and end <= start:
+                raise ValueError(
+                    f"interval {start}-{end} does not end after it starts; "
+                    "split overnight hours by weekday")
+            intervals.append((start, end))
         for day in _parse_days(days_text):
-            hours.setdefault(day, []).append((start, end))
+            hours.setdefault(day, []).extend(intervals)
     if not hours:
         raise ValueError("no day/time segments found")
     return {day: sorted(intervals) for day, intervals in sorted(hours.items())}
