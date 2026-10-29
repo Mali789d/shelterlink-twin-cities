@@ -38,6 +38,20 @@ def _record_digest(record) -> str:
     return hashlib.sha256(_canonical(record).encode("utf-8")).hexdigest()
 
 
+def _aware_instant(value, label: str) -> None:
+    """A record's time is part of its evidence: ISO text with a timezone, or
+    the record cannot order the review it claims to document. Naive or
+    unparseable timestamps reject the line, like any other malformed field."""
+    if not isinstance(value, str):
+        raise ValueError(f"{label}: recorded_at must be an ISO timestamp string")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"{label}: recorded_at is not an ISO timestamp") from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{label}: recorded_at must include a timezone")
+
+
 def read_history(path) -> list:
     """Parse a history log, bounding bytes and validating each record's shape."""
     path = Path(path)
@@ -54,6 +68,7 @@ def read_history(path) -> list:
         record = json.loads(line, object_pairs_hook=unique_object)
         if not isinstance(record, dict) or any(field not in record for field in RECORD_FIELDS):
             raise ValueError(f"history line {line_number} is not a complete record object")
+        _aware_instant(record["recorded_at"], f"history line {line_number}")
         records.append(record)
     return records
 
@@ -77,6 +92,9 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
     previous = records[-1] if records else None
     if previous and previous["snapshot_sha256"] == digest:
         raise ValueError("snapshot is unchanged since the latest history record")
+    if at is not None and (at.tzinfo is None or at.utcoffset() is None):
+        # A naive clock value would write a timestamp that reads as a broken chain.
+        raise ValueError("history timestamp must include a timezone")
     recorded_at = (at or datetime.now(timezone.utc)).astimezone(timezone.utc)
     record = {
         "recorded_at": recorded_at.isoformat(),

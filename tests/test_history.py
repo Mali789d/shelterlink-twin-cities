@@ -154,3 +154,37 @@ def test_cli_append_then_verify_round_trip(tmp_path):
     report = json.loads(verified.stdout)
     assert report["chain_ok"] is True and report["snapshot_matches_latest"] is True
     assert "Not provider verification" in report["notice"]
+
+
+def _record_line(recorded_at):
+    return json.dumps({"recorded_at": recorded_at, "snapshot_sha256": "x" * 64,
+                       "resource_count": 1, "note": "review", "previous_sha256": None})
+
+
+@pytest.mark.parametrize("recorded_at", [
+    "yesterday",                    # not a timestamp at all
+    "2026-10-20T12:00:00",          # naive: no timezone to order the review by
+    "2026-13-01T12:00:00Z",         # impossible month
+    12345,                          # not even text
+])
+def test_history_rejects_records_without_aware_timestamps(tmp_path, recorded_at):
+    history = tmp_path / "history.jsonl"
+    history.write_text(_record_line(recorded_at) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_history(history)
+
+
+@pytest.mark.parametrize("recorded_at", ["2026-10-20T12:00:00-05:00", "2026-10-20T17:00:00Z"])
+def test_history_accepts_timezone_bearing_timestamps(tmp_path, recorded_at):
+    history = tmp_path / "history.jsonl"
+    history.write_text(_record_line(recorded_at) + "\n", encoding="utf-8")
+    (record,) = read_history(history)
+    assert record["recorded_at"] == recorded_at
+
+
+def test_append_rejects_a_naive_timestamp(tmp_path):
+    history = tmp_path / "history.jsonl"
+    snapshot = write_snapshot(tmp_path / "snapshot.json", resource())
+    with pytest.raises(ValueError):
+        append_record(history, snapshot, "review", at=datetime(2026, 10, 29, 12, 0))
+    assert not history.exists()
