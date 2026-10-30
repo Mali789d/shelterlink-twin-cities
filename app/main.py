@@ -32,6 +32,35 @@ reply_throttle = ReplyThrottle.from_env()
 reply_cache = ReplyCache()
 
 
+@app.middleware("http")
+async def response_policy_headers(request: Request, call_next):
+    """Cache and browser-safety policy travels with every response, errors included.
+
+    An SMS reply is computed for one sender's location, and search results carry
+    live availability claims: a shared cache replaying either one serves a stale
+    "open"/"available" answer as current - the exact harm this service exists to
+    prevent - or one person's referral to another. Those responses are no-store.
+    """
+    response = await call_next(request)
+    if request.url.path in ("/sms", "/resources/search", "/ready"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    # Location text rides in page URLs (?location=...); never leak it via Referer.
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    if request.url.scheme == "https":
+        # Browsers ignore this over plain HTTP, so local development is unaffected.
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    if response.headers.get("content-type", "").startswith("text/html"):
+        # The notice pages carry only an inline stylesheet; scripts, images,
+        # frames, connections and any other base URI stay denied.
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+        )
+    return response
+
+
 def get_opt_out_store() -> OptOutStore:
     if os.environ.get("SHELTERLINK_ENV", "").strip().lower() != "production":
         return opt_outs
