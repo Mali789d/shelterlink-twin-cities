@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CITY_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs';
+import {CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs';
 import {parseCoordinates, parseLocation} from '../web/location-input.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
@@ -43,9 +43,49 @@ test('variant forgiveness never guesses a place', () => {
   }
 });
 
+test('well-known neighborhoods resolve to their primary ZIP centroid', () => {
+  assert.equal(Object.keys(NEIGHBORHOOD_CENTROIDS).length, 50);
+  assert.ok(Object.isFrozen(NEIGHBORHOOD_CENTROIDS));
+  assert.deepEqual(lookupPlace('frogtown'), ZIP_CENTROIDS['55103']);
+  assert.deepEqual(lookupPlace('uptown'), ZIP_CENTROIDS['55408']);
+  assert.deepEqual(lookupPlace('cedar riverside'), ZIP_CENTROIDS['55454']);
+  assert.deepEqual(lookupPlace('downtown minneapolis'), CITY_CENTROIDS['minneapolis']);
+  assert.deepEqual(lookupPlace('downtown st paul'), CITY_CENTROIDS['saint paul']);
+  assert.ok(Object.isFrozen(lookupPlace('midway')));
+});
+
+test('neighborhood lookup forgives the same texting variants as Python', () => {
+  assert.deepEqual(lookupPlace('North-Loop'), lookupPlace('north loop'));
+  assert.deepEqual(lookupPlace("Dayton's Bluff"), lookupPlace('daytons bluff'));
+  assert.deepEqual(lookupPlace('Dayton\u2019s Bluff'), lookupPlace('daytons bluff'));
+  assert.deepEqual(lookupPlace('payne-phalen'), lookupPlace('payne phalen'));
+  assert.deepEqual(lookupPlace('MAC-GROVELAND'), lookupPlace('mac groveland'));
+  assert.deepEqual(lookupPlace('west 7th'), lookupPlace('west seventh'));
+  assert.deepEqual(lookupPlace('Frogtown, MN'), lookupPlace('frogtown'));
+  assert.notEqual(lookupPlace('North-Loop'), null);
+});
+
+test('ambiguous neighborhood names stay unknown instead of guessing a city', () => {
+  // 'Como' is a Minneapolis neighborhood AND Saint Paul's Como Park; bare
+  // 'Downtown' is both cities; 'St Anthony' is a suburb and a park district;
+  // 'Jordan' and 'Windom' name both metro neighborhoods and other MN cities.
+  for (const input of ['como', 'downtown', 'st anthony', 'jordan', 'windom',
+    'riverside', 'uptown minneapolis']) {
+    assert.equal(lookupPlace(input), null, JSON.stringify(input));
+  }
+});
+
 test('unknown and ambiguous places return null instead of a guess', () => {
   for (const input of ['10001', '1000', '554150', 'nowhere particular',
     '123 Main St, Minneapolis', '44.9, -93.1', '', null, {}, 55415]) {
+    assert.equal(lookupPlace(input), null, JSON.stringify(input));
+  }
+});
+
+test('inherited Object member names never resolve as places', () => {
+  // Plain-object maps expose prototype members to bracket reads; a texted
+  // 'constructor' or '__proto__' must stay unknown, matching Python's dict.
+  for (const input of ['constructor', '__proto__', 'Constructor', '  constructor  ']) {
     assert.equal(lookupPlace(input), null, JSON.stringify(input));
   }
 });

@@ -2,8 +2,8 @@
 // ZIPs resolve to approximate centroids from the same public 2013 government ZIP
 // reference data as app/zip_centroids.py, with the same Hennepin/Ramsey county
 // coverage plus metro-adjacent 554xx/551xx ZIPs - never to an exact address.
-// Cities resolve to the mean of their covered ZIP centroids, matching
-// app/geocoding.py.
+// Cities resolve to the mean of their covered ZIP centroids, and well-known
+// neighborhoods to their primary ZIP's centroid, matching app/geocoding.py.
 // Keep this map in sync with the Python module; tests/test_zip_lookup_parity.py
 // enforces it.
 
@@ -165,14 +165,79 @@ export const CITY_CENTROIDS = Object.freeze({
   'woodbury': Object.freeze({latitude: 44.918031, longitude: -92.938277}),
 });
 
+// Well-known Minneapolis neighborhoods and Saint Paul planning districts people
+// actually text, each resolving to the centroid of its primary ZIP above - never
+// an exact address. Mirrors app/geocoding.py TWIN_CITIES_NEIGHBORHOOD_CENTROIDS
+// (same sources: zipdatamaps.com Minneapolis and mytwincitiesrealty.com Saint
+// Paul neighborhood-to-ZIP listings, checked October 2026). Ambiguous names
+// ("Como", bare "Downtown", "St Anthony") stay unknown rather than guess.
+export const NEIGHBORHOOD_CENTROIDS = Object.freeze({
+  // Minneapolis
+  'uptown': ZIP_CENTROIDS['55408'],
+  'dinkytown': ZIP_CENTROIDS['55414'],
+  'north loop': ZIP_CENTROIDS['55401'],
+  'cedar riverside': ZIP_CENTROIDS['55454'],
+  'west bank': ZIP_CENTROIDS['55454'],
+  'northeast': ZIP_CENTROIDS['55413'],
+  'northeast minneapolis': ZIP_CENTROIDS['55413'],
+  'nordeast': ZIP_CENTROIDS['55413'],
+  'longfellow': ZIP_CENTROIDS['55406'],
+  'powderhorn': ZIP_CENTROIDS['55407'],
+  'powderhorn park': ZIP_CENTROIDS['55407'],
+  'whittier': ZIP_CENTROIDS['55404'],
+  'seward': ZIP_CENTROIDS['55406'],
+  'linden hills': ZIP_CENTROIDS['55410'],
+  'nokomis': ZIP_CENTROIDS['55417'],
+  'camden': ZIP_CENTROIDS['55412'],
+  'near north': ZIP_CENTROIDS['55411'],
+  'loring park': ZIP_CENTROIDS['55403'],
+  'elliot park': ZIP_CENTROIDS['55404'],
+  'hawthorne': ZIP_CENTROIDS['55411'],
+  'downtown minneapolis': CITY_CENTROIDS['minneapolis'],
+  'marcy holmes': ZIP_CENTROIDS['55414'],
+  'prospect park': ZIP_CENTROIDS['55414'],
+  'king field': ZIP_CENTROIDS['55409'],
+  'kingfield': ZIP_CENTROIDS['55409'],
+  'tangletown': ZIP_CENTROIDS['55419'],
+  'bryn mawr': ZIP_CENTROIDS['55405'],
+  'minnehaha': ZIP_CENTROIDS['55417'],
+  // Saint Paul
+  'frogtown': ZIP_CENTROIDS['55103'],
+  'thomas dale': ZIP_CENTROIDS['55103'],
+  'midway': ZIP_CENTROIDS['55104'],
+  'como park': ZIP_CENTROIDS['55108'],
+  'daytons bluff': ZIP_CENTROIDS['55106'],
+  'payne phalen': ZIP_CENTROIDS['55130'],
+  'north end': ZIP_CENTROIDS['55117'],
+  'west side': ZIP_CENTROIDS['55107'],
+  'west seventh': ZIP_CENTROIDS['55102'],
+  'west 7th': ZIP_CENTROIDS['55102'],
+  'summit university': ZIP_CENTROIDS['55104'],
+  'macalester groveland': ZIP_CENTROIDS['55105'],
+  'mac groveland': ZIP_CENTROIDS['55105'],
+  'highland park': ZIP_CENTROIDS['55116'],
+  'summit hill': ZIP_CENTROIDS['55105'],
+  'downtown saint paul': CITY_CENTROIDS['saint paul'],
+  'downtown st paul': CITY_CENTROIDS['st paul'],
+  'lowertown': ZIP_CENTROIDS['55101'],
+  'st anthony park': ZIP_CENTROIDS['55108'],
+  'union park': ZIP_CENTROIDS['55104'],
+  'merriam park': ZIP_CENTROIDS['55104'],
+  'battle creek': ZIP_CENTROIDS['55119'],
+});
+
 // Texting variants of the same place: a trailing state name, abbreviation
-// periods (St.) and stray whitespace never change which city the sender means.
+// periods (St.), apostrophes, hyphens and stray whitespace never change which
+// city the sender means.
 // Mirrors app/geocoding.py normalize_place; keep the two implementations in sync.
 const STATE_SUFFIX = /\s*,?\s*(?:mn|minnesota)$/;
 const LETTER_PERIOD = /(?<=[a-z])\./g;
 
 function normalizePlace(text) {
-  return text.toLowerCase().trim().replace(/\s+/g, ' ')
+  // Apostrophes (straight or curled by autocorrect) and hyphens are texting
+  // formatting, not different places - mirrors app/geocoding.py normalize_place.
+  return text.toLowerCase().replace(/['\u2019]/g, '').replace(/-/g, ' ')
+    .trim().replace(/\s+/g, ' ')
     .replace(LETTER_PERIOD, '').replace(STATE_SUFFIX, '')
     .replace(/^[ ,]+|[ ,]+$/g, '');
 }
@@ -182,5 +247,10 @@ function normalizePlace(text) {
 export function lookupPlace(input) {
   if (typeof input !== 'string' || input.length > 100) return null;
   const text = normalizePlace(input);
-  return ZIP_CENTROIDS[text] ?? CITY_CENTROIDS[text] ?? null;
+  // Own-property reads only: a texted 'constructor' or '__proto__' must stay
+  // unknown, never resolve to an inherited Object member as if it were a place.
+  for (const centroids of [ZIP_CENTROIDS, CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS]) {
+    if (Object.hasOwn(centroids, text)) return centroids[text];
+  }
+  return null;
 }

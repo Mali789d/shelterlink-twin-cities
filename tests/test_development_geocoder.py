@@ -1,7 +1,12 @@
 """The development geocoder covers Twin Cities metro ZIPs with sane centroids."""
 import re
 
-from app.geocoding import DevelopmentGeocoder, parse_coordinates
+from app.geocoding import (
+    DevelopmentGeocoder,
+    TWIN_CITIES_CITY_CENTROIDS,
+    TWIN_CITIES_NEIGHBORHOOD_CENTROIDS,
+    parse_coordinates,
+)
 from app.search import validate_coordinates
 from app.zip_centroids import TWIN_CITIES_ZIP_CENTROIDS
 
@@ -84,8 +89,7 @@ def test_city_centroids_stay_on_their_own_sides_of_the_river():
 
 def test_metro_city_names_resolve_to_metro_centroids():
     geocoder = DevelopmentGeocoder()
-    city_entries = {name: coords for name, coords in geocoder.locations.items()
-                    if not name.isdigit()}
+    city_entries = TWIN_CITIES_CITY_CENTROIDS
     assert len(city_entries) == 49
     lat_min, lat_max, lng_min, lng_max = TWIN_CITIES_BOX
     for name, (latitude, longitude) in city_entries.items():
@@ -107,3 +111,53 @@ def test_parse_coordinates_accepts_only_explicit_in_range_pairs():
                      "12,34,56", "", "Infinity,0", "44.9,",
                      "44." + "0" * 100 + ",-93"):
         assert parse_coordinates(rejected) is None, rejected
+def test_neighborhoods_resolve_to_their_primary_zip_centroid():
+    geocoder = DevelopmentGeocoder()
+    assert len(TWIN_CITIES_NEIGHBORHOOD_CENTROIDS) == 50
+    downtowns = {geocoder.locations["minneapolis"], geocoder.locations["saint paul"]}
+    lat_min, lat_max, lng_min, lng_max = TWIN_CITIES_BOX
+    for name, centroid in TWIN_CITIES_NEIGHBORHOOD_CENTROIDS.items():
+        # Every neighborhood borrows an existing ZIP (or downtown) centroid:
+        # the only new data here is the name-to-place mapping, never coordinates.
+        assert centroid in set(TWIN_CITIES_ZIP_CENTROIDS.values()) | downtowns, name
+        validate_coordinates(*centroid)
+        assert lat_min <= centroid[0] <= lat_max and lng_min <= centroid[1] <= lng_max, name
+        assert geocoder.geocode(name) == centroid
+
+
+def test_neighborhood_lookup_spot_checks():
+    geocoder = DevelopmentGeocoder()
+    assert geocoder.geocode("frogtown") == TWIN_CITIES_ZIP_CENTROIDS["55103"]
+    assert geocoder.geocode("uptown") == TWIN_CITIES_ZIP_CENTROIDS["55408"]
+    assert geocoder.geocode("cedar riverside") == TWIN_CITIES_ZIP_CENTROIDS["55454"]
+    assert geocoder.geocode("downtown minneapolis") == geocoder.locations["minneapolis"]
+    assert geocoder.geocode("downtown st paul") == geocoder.locations["saint paul"]
+
+
+def test_neighborhood_lookup_forgives_texting_variants():
+    geocoder = DevelopmentGeocoder()
+    assert geocode_pair(geocoder, "North-Loop", "north loop")
+    assert geocode_pair(geocoder, "Dayton's Bluff", "daytons bluff")
+    assert geocode_pair(geocoder, "Dayton\u2019s Bluff", "daytons bluff")
+    assert geocode_pair(geocoder, "payne-phalen", "payne phalen")
+    assert geocode_pair(geocoder, "MAC-GROVELAND", "mac groveland")
+    assert geocoder.geocode("west 7th") == geocoder.geocode("west seventh")
+    assert geocoder.geocode("Frogtown, MN") == geocoder.geocode("frogtown")
+
+
+def geocode_pair(geocoder, variant, canonical):
+    result = geocoder.geocode(variant)
+    assert result is not None
+    return result == geocoder.geocode(canonical)
+
+
+def test_ambiguous_neighborhood_names_stay_unknown():
+    geocoder = DevelopmentGeocoder()
+    # "Como" is a Minneapolis neighborhood (55414) AND Saint Paul's Como Park
+    # (55108); bare "Downtown" is both cities; "St Anthony" is a suburb and a
+    # park district; "Jordan" is a Minneapolis neighborhood and a Scott County
+    # city; "Windom" is a Minneapolis neighborhood and a southwest MN city.
+    # A wrong guess here sends a person across town, so none of these resolve.
+    for ambiguous in ("como", "downtown", "st anthony", "jordan", "windom",
+                      "riverside", "uptown minneapolis"):
+        assert geocoder.geocode(ambiguous) is None, ambiguous

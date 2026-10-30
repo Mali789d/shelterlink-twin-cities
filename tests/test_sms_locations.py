@@ -92,3 +92,15 @@ def test_texted_city_variants_reach_the_same_search():
         response = client.post("/sms", data={"Body": body, "From": "+15555550100"})
         assert response.status_code == 200, body
         assert "Text a Twin Cities ZIP or location" not in response.text, body
+@pytest.mark.parametrize("text", ["meal frogtown", "shelter near north loop",
+                                  "shelter uptown", "meal downtown saint paul"])
+def test_neighborhood_requests_resolve_and_reply(text):
+    # Neighborhood names people actually text resolve to their primary ZIP
+    # centroid, so the reply lists nearby resources instead of "unknown location".
+    response = TestClient(app).post("/sms", data={"Body": text,
+                                                  "From": "+15555550199"})
+    assert response.status_code == 200
+    assert "couldn\u2019t find that location" not in response.text
+    assert "couldn't find that location" not in response.text
+    assert "Nearest resources" in response.text
+    assert "211" in response.text

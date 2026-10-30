@@ -65,18 +65,84 @@ TWIN_CITIES_CITY_CENTROIDS: dict[str, tuple[float, float]] = {
     "woodbury": (44.918031, -92.938277),
 }
 
+# Well-known Minneapolis neighborhoods and Saint Paul planning districts people
+# actually text ("Frogtown", "Uptown", "the Midway") far more often than a ZIP.
+# Each resolves to the centroid of its primary ZIP above, never an exact address.
+# Minneapolis names follow the zipdatamaps.com Minneapolis neighborhood-to-ZIP
+# listing; Saint Paul names follow the mytwincitiesrealty.com district-to-ZIP
+# listing (both checked October 2026). Ambiguous names stay unknown on purpose:
+# "Como" is a Minneapolis neighborhood (55414) AND Saint Paul's Como Park
+# (55108), bare "Downtown" is both cities, and "St Anthony" is both a suburb
+# and a Saint Paul park district - a guess would send someone across town.
+TWIN_CITIES_NEIGHBORHOOD_CENTROIDS: dict[str, tuple[float, float]] = {
+    # Minneapolis
+    "uptown": TWIN_CITIES_ZIP_CENTROIDS["55408"],
+    "dinkytown": TWIN_CITIES_ZIP_CENTROIDS["55414"],
+    "north loop": TWIN_CITIES_ZIP_CENTROIDS["55401"],
+    "cedar riverside": TWIN_CITIES_ZIP_CENTROIDS["55454"],
+    "west bank": TWIN_CITIES_ZIP_CENTROIDS["55454"],
+    "northeast": TWIN_CITIES_ZIP_CENTROIDS["55413"],
+    "northeast minneapolis": TWIN_CITIES_ZIP_CENTROIDS["55413"],
+    "nordeast": TWIN_CITIES_ZIP_CENTROIDS["55413"],
+    "longfellow": TWIN_CITIES_ZIP_CENTROIDS["55406"],
+    "powderhorn": TWIN_CITIES_ZIP_CENTROIDS["55407"],
+    "powderhorn park": TWIN_CITIES_ZIP_CENTROIDS["55407"],
+    "whittier": TWIN_CITIES_ZIP_CENTROIDS["55404"],
+    "seward": TWIN_CITIES_ZIP_CENTROIDS["55406"],
+    "linden hills": TWIN_CITIES_ZIP_CENTROIDS["55410"],
+    "nokomis": TWIN_CITIES_ZIP_CENTROIDS["55417"],
+    "camden": TWIN_CITIES_ZIP_CENTROIDS["55412"],
+    "near north": TWIN_CITIES_ZIP_CENTROIDS["55411"],
+    "loring park": TWIN_CITIES_ZIP_CENTROIDS["55403"],
+    "elliot park": TWIN_CITIES_ZIP_CENTROIDS["55404"],
+    "hawthorne": TWIN_CITIES_ZIP_CENTROIDS["55411"],
+    "downtown minneapolis": TWIN_CITIES_CITY_CENTROIDS["minneapolis"],
+    "marcy holmes": TWIN_CITIES_ZIP_CENTROIDS["55414"],
+    "prospect park": TWIN_CITIES_ZIP_CENTROIDS["55414"],
+    "king field": TWIN_CITIES_ZIP_CENTROIDS["55409"],
+    "kingfield": TWIN_CITIES_ZIP_CENTROIDS["55409"],
+    "tangletown": TWIN_CITIES_ZIP_CENTROIDS["55419"],
+    "bryn mawr": TWIN_CITIES_ZIP_CENTROIDS["55405"],
+    "minnehaha": TWIN_CITIES_ZIP_CENTROIDS["55417"],
+    # Saint Paul
+    "frogtown": TWIN_CITIES_ZIP_CENTROIDS["55103"],
+    "thomas dale": TWIN_CITIES_ZIP_CENTROIDS["55103"],
+    "midway": TWIN_CITIES_ZIP_CENTROIDS["55104"],
+    "como park": TWIN_CITIES_ZIP_CENTROIDS["55108"],
+    "daytons bluff": TWIN_CITIES_ZIP_CENTROIDS["55106"],
+    "payne phalen": TWIN_CITIES_ZIP_CENTROIDS["55130"],
+    "north end": TWIN_CITIES_ZIP_CENTROIDS["55117"],
+    "west side": TWIN_CITIES_ZIP_CENTROIDS["55107"],
+    "west seventh": TWIN_CITIES_ZIP_CENTROIDS["55102"],
+    "west 7th": TWIN_CITIES_ZIP_CENTROIDS["55102"],
+    "summit university": TWIN_CITIES_ZIP_CENTROIDS["55104"],
+    "macalester groveland": TWIN_CITIES_ZIP_CENTROIDS["55105"],
+    "mac groveland": TWIN_CITIES_ZIP_CENTROIDS["55105"],
+    "highland park": TWIN_CITIES_ZIP_CENTROIDS["55116"],
+    "summit hill": TWIN_CITIES_ZIP_CENTROIDS["55105"],
+    "downtown saint paul": TWIN_CITIES_CITY_CENTROIDS["saint paul"],
+    "downtown st paul": TWIN_CITIES_CITY_CENTROIDS["saint paul"],
+    "lowertown": TWIN_CITIES_ZIP_CENTROIDS["55101"],
+    "st anthony park": TWIN_CITIES_ZIP_CENTROIDS["55108"],
+    "union park": TWIN_CITIES_ZIP_CENTROIDS["55104"],
+    "merriam park": TWIN_CITIES_ZIP_CENTROIDS["55104"],
+    "battle creek": TWIN_CITIES_ZIP_CENTROIDS["55119"],
+}
+
 
 class DevelopmentGeocoder:
     """Deterministic local map for development; replace before launch.
 
     Every covered metro ZIP (Hennepin and Ramsey counties plus metro-adjacent
-    ZIPs) and the municipalities those ZIPs belong to resolve to an approximate
-    centroid - never an exact address.
+    ZIPs), the municipalities those ZIPs belong to, and well-known Minneapolis
+    neighborhoods and Saint Paul districts resolve to an approximate centroid -
+    never an exact address.
     """
 
     locations = {
         **TWIN_CITIES_ZIP_CENTROIDS,
         **TWIN_CITIES_CITY_CENTROIDS,
+        **TWIN_CITIES_NEIGHBORHOOD_CENTROIDS,
     }
 
     def geocode(self, location: str) -> tuple[float, float] | None:
@@ -88,14 +154,19 @@ class DevelopmentGeocoder:
 
 
 # Texting variants of the same place: a trailing state name, abbreviation
-# periods (St.) and stray whitespace never change which city the sender means.
+# periods (St.), apostrophes, hyphens and stray whitespace never change which
+# city the sender means.
 _STATE_SUFFIX = re.compile(r"\s*,?\s*(?:mn|minnesota)$")
 _LETTER_PERIOD = re.compile(r"(?<=[a-z])\.")
 
 
 def normalize_place(text: str) -> str:
     """Canonical lookup key for a texted place; unknown input stays unknown."""
-    text = " ".join(text.lower().split())
+    # Apostrophes (straight or curled by autocorrect) and hyphens are texting
+    # formatting, not different places: "Dayton's Bluff", "daytons bluff" and
+    # "Payne-Phalen" all mean the same district.
+    text = text.lower().replace("'", "").replace("\u2019", "").replace("-", " ")
+    text = " ".join(text.split())
     text = _LETTER_PERIOD.sub("", text)
     return _STATE_SUFFIX.sub("", text).strip(" ,")
 
