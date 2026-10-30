@@ -69,45 +69,98 @@ def parse_sms(body: str) -> SmsQuery | None:
     return SmsQuery(location, category, language) if location else None
 
 
-# Twilio rejects any message body over 1,600 characters (error 21617). An over-long
-# reply fails outright: the sender gets no resources and no 211/911 guidance.
-MAX_MESSAGE_CHARS = 1600
+# Carrier ceilings for concatenated SMS (Twilio's SMS length glossary and error
+# 30019): a GSM-7 message carries up to 1,600 characters, but one character
+# outside GSM-7 switches the whole message to UCS-2, whose carrier maximum is
+# 700 code units. Twilio separately rejects any API call over 1,600 characters
+# (error 21617). A reply that cannot be transmitted reaches no one at all - no
+# resources and no 211/911 guidance - so a reply is bounded by the ceiling of
+# the encoding its content actually needs, not by the API limit alone.
+MAX_MESSAGE_CHARS = 1600  # Twilio's API-level limit, any encoding (error 21617)
+MAX_GSM7_UNITS = 1600
+MAX_UCS2_UNITS = 700
+
+# 3GPP TS 23.038 default alphabet: each basic character costs one unit;
+# extension characters cost an escape unit plus their own.
+GSM7_BASIC = frozenset(
+    "@\u00a3$\u00a5\u00e8\u00e9\u00f9\u00ec\u00f2\u00c7\n\u00d8\u00f8\r\u00c5\u00e5"
+    "\u0394_\u03a6\u0393\u039b\u03a9\u03a0\u03a8\u03a3\u0398\u039e\x1b\u00c6\u00e6\u00df\u00c9 "
+    "!\"#\u00a4%&'()*+,-./0123456789:;<=>?\u00a1"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\u00c4\u00d6\u00d1\u00dc\u00a7\u00bf"
+    "abcdefghijklmnopqrstuvwxyz\u00e4\u00f6\u00f1\u00fc\u00e0")
+GSM7_EXTENSION = frozenset("\x0c^{}\\[~]|\u20ac")
 
 # A line shortened below this carries too little information to be worth sending.
 MIN_LINE_BUDGET = 40
 
 
-def _truncate_line(line: str, budget: int) -> str:
-    """Shorten one display line to ``budget`` characters, ending with an ellipsis."""
-    body = line[: budget - 1].rstrip()
-    # Prefer a word boundary when it keeps most of the content.
-    boundary = body.rfind(" ")
-    if boundary >= len(body) * 3 // 4:
-        body = body[:boundary].rstrip(" ,;:")
-    return body + "\u2026"
+def sms_units(text: str) -> tuple[int, int]:
+    """(units, ceiling) for the encoding this text forces.
+
+    GSM-7 text is measured in GSM-7 units against the 1,600-character carrier
+    maximum; anything containing a character outside GSM-7 is measured in
+    UTF-16 code units against the 700-unit UCS-2 carrier maximum.
+    """
+    units = 0
+    for char in text:
+        if char in GSM7_BASIC:
+            units += 1
+        elif char in GSM7_EXTENSION:
+            units += 2
+        else:
+            return len(text.encode("utf-16-le")) // 2, MAX_UCS2_UNITS
+    return units, MAX_GSM7_UNITS
+
+
+def _fits(text: str) -> bool:
+    units, ceiling = sms_units(text)
+    return units <= ceiling
+
+
+def _truncate_line(line: str, fits) -> str | None:
+    """Shorten one display line until it fits, ending with "...".
+
+    The marker is three GSM-7 dots on purpose: the single-character ellipsis
+    (U+2026) is not in the GSM-7 alphabet, so it would flip the whole reply to
+    UCS-2 and its 700-unit ceiling - an attempt to fit that fails to send.
+    Returns None when the line cannot keep enough text to be worth sending.
+    """
+    body = line.rstrip()
+    while len(body) + 3 >= MIN_LINE_BUDGET:
+        # Prefer a word boundary when it keeps most of the content.
+        boundary = body.rfind(" ")
+        if boundary >= len(body) * 3 // 4:
+            body = body[:boundary].rstrip(" ,;:")
+        else:
+            body = body[:-1].rstrip()
+        if fits(body + "..."):
+            return body + "..."
+    return None
 
 
 def _bound_reply(heading: str, lines: list[str], footer: str) -> str:
-    """Fit a reply under the provider ceiling without dropping the safety footer.
+    """Fit a reply under its encoding's carrier ceiling without dropping the
+    safety footer.
 
     Results stay in nearest-first order: keep whole lines while they fit, truncate
     the first line that does not, and drop every farther line. The heading and the
     localized 211/911 footer are never truncated or removed.
     """
     full = "\n".join([heading, *lines, footer])
-    if len(full) <= MAX_MESSAGE_CHARS:
+    if _fits(full):
         return full
-    if len(heading) + len(footer) + 2 > MAX_MESSAGE_CHARS:
+    if not _fits("\n".join([heading, footer])):
         raise ValueError("fixed reply text exceeds the SMS length limit")
     kept: list[str] = []
     for line in lines:
         candidate = "\n".join([heading, *kept, line, footer])
-        if len(candidate) <= MAX_MESSAGE_CHARS:
+        if _fits(candidate):
             kept.append(line)
             continue
-        budget = MAX_MESSAGE_CHARS - (len(candidate) - len(line))
-        if budget >= MIN_LINE_BUDGET:
-            kept.append(_truncate_line(line, budget))
+        truncated = _truncate_line(
+            line, lambda piece: _fits("\n".join([heading, *kept, piece, footer])))
+        if truncated is not None:
+            kept.append(truncated)
         break
     return "\n".join([heading, *kept, footer])
 

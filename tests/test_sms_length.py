@@ -5,7 +5,7 @@ import pytest
 
 from app.i18n import AVAILABILITY, MESSAGES, Language
 from app.models import Availability, Resource, ResourceCategory, ResourceResult
-from app.sms import MAX_MESSAGE_CHARS, format_results
+from app.sms import MAX_GSM7_UNITS, MAX_MESSAGE_CHARS, MAX_UCS2_UNITS, format_results, sms_units
 
 
 def make_result(result_id: str, name: str, address: str, distance: float = 1.0) -> ResourceResult:
@@ -44,7 +44,9 @@ def expected_line(result: ResourceResult, language: Language = Language.ENGLISH)
 
 @pytest.mark.parametrize("language", list(Language))
 @pytest.mark.parametrize("kind", ["help", "opt_in", "unknown_location", "none", "not_live"])
-def test_every_static_reply_fits_provider_limit(language, kind):
+def test_every_static_reply_fits_its_encoding_ceiling(language, kind):
+    units, ceiling = sms_units(MESSAGES[language][kind])
+    assert units <= ceiling
     assert len(MESSAGES[language][kind]) <= MAX_MESSAGE_CHARS
 
 
@@ -92,13 +94,13 @@ def test_one_character_over_limit_truncates_display_line():
     name = "Base " + "x" * padding
     message = format_results([make_result("a", name, "1 Main St", 0.4)])
     assert len(message) <= MAX_MESSAGE_CHARS
-    assert "\u2026" in message
+    assert "..." in message
     assert message.endswith(MESSAGES[Language.ENGLISH]["footer"])
     truncated_line = message.split("\n")[1]
-    assert truncated_line.endswith("\u2026")
+    assert truncated_line.endswith("...")
     # Truncation shortens a copy of the line; it never invents replacement text.
     original_line = expected_line(make_result("a", name, "1 Main St", 0.4))
-    assert original_line.startswith(truncated_line[:-1])
+    assert original_line.startswith(truncated_line[:-3])
 
 
 def test_mixed_lengths_keep_whole_nearby_lines():
@@ -107,5 +109,38 @@ def test_mixed_lengths_keep_whole_nearby_lines():
     message = format_results(results)
     assert len(message) <= MAX_MESSAGE_CHARS
     assert "Mary's Place - 0.4 mi" in message
-    assert "\u2026" in message
+    assert "..." in message
     assert message.endswith(MESSAGES[Language.ENGLISH]["footer"])
+
+
+def test_ucs2_reply_respects_the_lower_carrier_ceiling():
+    # One emoji forces UCS-2 for the whole message: the carrier maximum drops
+    # to 700 code units, and the reply must fit that, not the 1,600 API limit.
+    results = [make_result("a", "Shelter \U0001f3e0 " + "North Minneapolis " * 30,
+                           "123 Main St " * 20, 0.4),
+               make_result("b", "Second Shelter " * 40, "456 Cedar Ave " * 40, 1.2)]
+    message = format_results(results)
+    units, ceiling = sms_units(message)
+    assert ceiling == MAX_UCS2_UNITS
+    assert units <= MAX_UCS2_UNITS
+    assert message.endswith(MESSAGES[Language.ENGLISH]["footer"])
+    assert "211" in message and "911" in message
+
+
+def test_truncation_marker_never_flips_a_gsm7_reply_to_ucs2():
+    # The old single-character ellipsis is not in the GSM-7 alphabet; using it
+    # would flip an otherwise GSM-7 reply to the 700-unit UCS-2 ceiling.
+    base = format_results([make_result("a", "Base", "1 Main St", 0.4)])
+    name = "Base " + "x" * (MAX_MESSAGE_CHARS - len(base) + 1)
+    message = format_results([make_result("a", name, "1 Main St", 0.4)])
+    assert "\u2026" not in message
+    units, ceiling = sms_units(message)
+    assert ceiling == MAX_GSM7_UNITS
+    assert units <= MAX_GSM7_UNITS
+
+
+def test_emoji_counts_as_two_ucs2_units():
+    assert sms_units("a\U0001f600b") == (4, MAX_UCS2_UNITS)
+    assert sms_units("plain ascii") == (11, MAX_GSM7_UNITS)
+    # GSM-7 extension characters cost two units but keep the 1,600 ceiling.
+    assert sms_units("a^b") == (4, MAX_GSM7_UNITS)
