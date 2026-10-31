@@ -150,7 +150,25 @@ class DevelopmentGeocoder:
         # text longer than that is rejected, not trimmed into a match.
         if len(location) > 100:
             return None
-        return self.locations.get(normalize_place(location))
+        text = normalize_place(location)
+        found = self.locations.get(text)
+        if found is not None:
+            return found
+        # Natural phrasing keeps its preposition ("meal near Frogtown"): try the
+        # place without one leading preposition, but only after the literal text
+        # failed - "Near North" is a real Minneapolis neighborhood and must not
+        # be mangled to "north". Mirrors web/zip-lookup.mjs lookupPlace.
+        first, separator, rest = text.partition(" ")
+        if separator and first in LEADING_PREPOSITIONS:
+            return self.locations.get(rest)
+        return None
+
+
+# Natural phrasing puts one of these before the place ("shelter in Minneapolis",
+# "food near Frogtown"); the geocoder forgives a single leading one. Imported by
+# app/sms.py for its lone-preposition guard and mirrored by
+# web/zip-lookup.mjs - keep all three in sync.
+LEADING_PREPOSITIONS = ("in", "near", "around", "at", "by")
 
 
 # Texting variants of the same place: a trailing state name, abbreviation

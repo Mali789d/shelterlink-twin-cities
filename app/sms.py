@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from html import escape
 
+from .geocoding import LEADING_PREPOSITIONS
 from .i18n import AVAILABILITY, MESSAGES, Language, parse_language, strip_language_directive
 from .models import ResourceCategory, ResourceResult
 
@@ -36,20 +37,6 @@ class SmsQuery:
     language: Language = Language.ENGLISH
 
 
-# Natural phrasing puts one of these before the place ("shelter in Minneapolis").
-# Dropping a single leading preposition is safe: no Twin Cities place name starts
-# with one, and a message that is only a preposition still yields no location.
-LEADING_PREPOSITIONS = ("in", "near", "around", "at", "by")
-
-
-def _drop_leading_preposition(location: str) -> str:
-    first, separator, rest = location.partition(" ")
-    if not separator:
-        # A trailing preposition alone carries no location: ask for one instead.
-        return "" if location in LEADING_PREPOSITIONS else location
-    return rest if first in LEADING_PREPOSITIONS else location
-
-
 def parse_sms(body: str) -> SmsQuery | None:
     language = parse_language(body)
     text = " ".join(strip_language_directive(body).lower().split())
@@ -64,9 +51,14 @@ def parse_sms(body: str) -> SmsQuery | None:
     category = next(iter(categories), None)
     if zip_codes:
         return SmsQuery(next(iter(zip_codes)), category, language)
+    # The text keeps its preposition ("shelter in Minneapolis"): the geocoder
+    # forgives one leading preposition only after the literal text fails, so
+    # "Near North" - a real neighborhood - resolves instead of being mangled to
+    # "north". A lone preposition carries no location: ask for one instead.
     location = " ".join(CATEGORY_PATTERN.sub("", text).split()).strip(" ,")
-    location = _drop_leading_preposition(location)
-    return SmsQuery(location, category, language) if location else None
+    if not location or location in LEADING_PREPOSITIONS:
+        return None
+    return SmsQuery(location, category, language)
 
 
 # Carrier ceilings for concatenated SMS (Twilio's SMS length glossary and error

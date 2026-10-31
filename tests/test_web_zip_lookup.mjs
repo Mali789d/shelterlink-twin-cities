@@ -140,3 +140,21 @@ test('metro city names resolve inside the Twin Cities metro', () => {
   assert.deepEqual(lookupPlace('eden prairie'), CITY_CENTROIDS['eden prairie']);
   assert.equal(lookupPlace('nowhereville'), null);
 });
+
+test('a leading preposition falls back only after the literal text fails', () => {
+  assert.deepEqual(lookupPlace('in minneapolis'), lookupPlace('minneapolis'));
+  assert.deepEqual(lookupPlace('near frogtown'), ZIP_CENTROIDS['55103']);
+  assert.deepEqual(lookupPlace('around saint paul'), lookupPlace('saint paul'));
+  assert.deepEqual(lookupPlace('at minneapolis'), lookupPlace('minneapolis'));
+  assert.deepEqual(lookupPlace('by uptown'), lookupPlace('uptown'));
+  // 'Near North' is a real neighborhood: the literal lookup must win over
+  // stripping 'near', which would leave the neighborhood unreachable.
+  assert.equal(lookupPlace('north'), null);
+  assert.ok(lookupPlace('near north') !== null);
+  // A lone preposition stays unknown, and forgiving one never un-ambiguates.
+  for (const lone of ['in', 'near', 'around', 'at', 'by']) {
+    assert.equal(lookupPlace(lone), null, lone);
+  }
+  assert.equal(lookupPlace('near como'), null);
+  assert.equal(lookupPlace('in downtown'), null);
+});

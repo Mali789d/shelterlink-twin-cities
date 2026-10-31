@@ -161,3 +161,26 @@ def test_ambiguous_neighborhood_names_stay_unknown():
     for ambiguous in ("como", "downtown", "st anthony", "jordan", "windom",
                       "riverside", "uptown minneapolis"):
         assert geocoder.geocode(ambiguous) is None, ambiguous
+
+
+def test_leading_preposition_falls_back_only_after_literal_miss():
+    geocoder = DevelopmentGeocoder()
+    # Natural phrasing keeps its preposition and still lands on the place.
+    assert geocoder.geocode("in minneapolis") == geocoder.geocode("minneapolis")
+    assert geocoder.geocode("near frogtown") == geocoder.geocode("frogtown")
+    assert geocoder.geocode("around saint paul") == geocoder.geocode("saint paul")
+    assert geocoder.geocode("at minneapolis") == geocoder.geocode("minneapolis")
+    assert geocoder.geocode("by uptown") == geocoder.geocode("uptown")
+    # 'Near North' is a real neighborhood: the literal lookup must win over
+    # stripping 'near', which would leave the neighborhood unreachable.
+    assert geocoder.geocode("north") is None
+    assert geocoder.geocode("near north") is not None
+
+
+def test_lone_preposition_stays_unknown():
+    geocoder = DevelopmentGeocoder()
+    for lone in ("in", "near", "around", "at", "by"):
+        assert geocoder.geocode(lone) is None, lone
+    # Forgiving a preposition never un-ambiguates a genuinely ambiguous place.
+    assert geocoder.geocode("near como") is None
+    assert geocoder.geocode("in downtown") is None

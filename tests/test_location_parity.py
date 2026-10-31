@@ -58,6 +58,12 @@ PLACE_INPUTS = [
     "minnesota",
     ",,,",
     "minneapolis" + " " * 95,
+    "in minneapolis",
+    "near frogtown",
+    "near north",
+    "near",
+    "at",
+    "by uptown",
 ]
 
 

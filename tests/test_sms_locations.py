@@ -46,10 +46,23 @@ def test_existing_single_location_requests_remain_supported(text):
     ("meal by minneapolis", "minneapolis"),
     ("in minneapolis", "minneapolis"),
 ])
-def test_leading_preposition_drops_before_named_location(text, expected):
+def test_leading_preposition_resolves_to_the_named_location(text, expected):
+    # The preposition stays in the parsed location; the geocoder forgives it
+    # only after the literal text fails, so both phrasings land on the city.
     query = parse_sms(text)
     assert query is not None
-    assert query.location == expected
+    from app.geocoding import DevelopmentGeocoder
+    geocoder = DevelopmentGeocoder()
+    assert geocoder.geocode(query.location) == geocoder.geocode(expected)
+
+
+def test_near_north_neighborhood_is_reachable_by_sms():
+    # 'Near North' is a real Minneapolis neighborhood: stripping 'near' before
+    # geocoding would mangle it to 'north' and leave it unreachable by SMS.
+    query = parse_sms("meal near north")
+    assert query is not None
+    from app.geocoding import DevelopmentGeocoder
+    assert DevelopmentGeocoder().geocode(query.location) is not None
 
 
 def test_place_name_starting_with_preposition_letters_is_untouched():

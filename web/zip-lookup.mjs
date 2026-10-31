@@ -242,15 +242,33 @@ function normalizePlace(text) {
     .replace(/^[ ,]+|[ ,]+$/g, '');
 }
 
-// A 5-digit ZIP or a known city name, forgiving common texting variants;
-// anything else is not a place we know.
-export function lookupPlace(input) {
-  if (typeof input !== 'string' || input.length > 100) return null;
-  const text = normalizePlace(input);
+// Natural phrasing puts one of these before the place ("shelter in Minneapolis",
+// "food near Frogtown"); the lookup forgives a single leading one. Mirrors
+// app/geocoding.py LEADING_PREPOSITIONS - keep all three in sync.
+const LEADING_PREPOSITIONS = new Set(['in', 'near', 'around', 'at', 'by']);
+
+function lookupNormalized(text) {
   // Own-property reads only: a texted 'constructor' or '__proto__' must stay
   // unknown, never resolve to an inherited Object member as if it were a place.
   for (const centroids of [ZIP_CENTROIDS, CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS]) {
     if (Object.hasOwn(centroids, text)) return centroids[text];
+  }
+  return null;
+}
+
+// A 5-digit ZIP or a known city or neighborhood name, forgiving common texting
+// variants; anything else is not a place we know.
+export function lookupPlace(input) {
+  if (typeof input !== 'string' || input.length > 100) return null;
+  const text = normalizePlace(input);
+  const direct = lookupNormalized(text);
+  if (direct) return direct;
+  // Try the place without one leading preposition only after the literal text
+  // failed - 'Near North' is a real Minneapolis neighborhood and must not be
+  // mangled to 'north'. Mirrors app/geocoding.py DevelopmentGeocoder.geocode.
+  const space = text.indexOf(' ');
+  if (space > 0 && LEADING_PREPOSITIONS.has(text.slice(0, space))) {
+    return lookupNormalized(text.slice(space + 1));
   }
   return null;
 }
