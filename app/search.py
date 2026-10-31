@@ -81,4 +81,10 @@ def find_resources(
             )
         ))
     # Round for display only: ranking rounded miles can hide the nearest resource.
-    return [item for _, item in sorted(matches, key=lambda pair: pair[0])[:limit]]
+    # Co-located services (a shelter and a meal program at one address) tie on
+    # every nearby search; break ties by id, exactly like web/directory.mjs
+    # nearbyResources, so the SMS reply, the API and the static page always
+    # present - and cut at the limit - the same deterministic order no matter
+    # how the data file happens to be ordered.
+    return [item for _, item in sorted(
+        matches, key=lambda pair: (pair[0], pair[1].resource.id))[:limit]]

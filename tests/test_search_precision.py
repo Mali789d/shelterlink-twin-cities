@@ -30,10 +30,16 @@ def test_full_ranking_uses_unrounded_distance_not_input_order():
     assert [item.distance_miles for item in results] == [0.1, 0.1, 0.2]
 
 
-def test_true_equal_distance_preserves_input_order():
-    results = find_resources([nearby("first", 0.001), nearby("second", -0.001)],
-                             0, 0, at=AT)
-    assert [item.resource.id for item in results] == ["first", "second"]
+def test_true_equal_distance_breaks_ties_by_id_not_input_order():
+    # The same tie policy as web/directory.mjs nearbyResources: co-located
+    # services rank by id, so a data-file reorder never changes who is listed
+    # first - or who makes the cut at the limit.
+    first = find_resources([nearby("b-site", 0.001), nearby("a-site", -0.001)],
+                           0, 0, at=AT)
+    second = find_resources([nearby("a-site", -0.001), nearby("b-site", 0.001)],
+                            0, 0, at=AT)
+    assert [item.resource.id for item in first] == ["a-site", "b-site"]
+    assert [item.resource.id for item in second] == ["a-site", "b-site"]
 
 
 @pytest.mark.parametrize("latitude,longitude", [(44.9778, -93.265), (-33.9, 151.2),
