@@ -25,6 +25,13 @@ app = FastAPI(
     description="SMS-first nearby resource finder for people experiencing homelessness.",
     version="0.1.0",
 )
+# SMS replies name at most three resources with no map to judge distance by. A
+# "nearest" listing 1000 miles away reads as nearby help, so the SMS search is
+# bounded to a service-area radius: generous enough to cover the Twin Cities
+# metro from any point in it, small enough that a "nearest" result is plausibly
+# reachable. Outside it, the existing no-results reply points the sender to 211.
+SMS_SEARCH_RADIUS_MILES = 50.0
+
 resources = load_resources()
 geocoder = DevelopmentGeocoder()
 opt_outs = InMemoryOptOutStore()
@@ -238,6 +245,7 @@ def respond_to_sms_form(form) -> Response:
         if not coordinates:
             message = MESSAGES[query.language]["unknown_location"]
         else:
-            found = find_resources(resources, *coordinates, category=query.category, limit=3)
+            found = find_resources(resources, *coordinates, category=query.category,
+                                   limit=3, radius_miles=SMS_SEARCH_RADIUS_MILES)
             message = format_results(found, query.language)
     return Response(twiml(message), media_type="application/xml")
