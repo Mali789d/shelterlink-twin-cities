@@ -64,6 +64,18 @@ DIRECTIVE_SPELLINGS = [
     ("lang,so", Language.SOMALI),
     ("lang somali", Language.SOMALI),
     ("lang en", Language.ENGLISH),
+    ("lang:es", Language.SPANISH),
+    ("lang: es", Language.SPANISH),
+    ("lang :es", Language.SPANISH),
+    ("lang : es", Language.SPANISH),
+    ("lang:es,", Language.SPANISH),
+    ("LANG:ES", Language.SPANISH),
+    ("lang=es", Language.SPANISH),
+    ("lang:espanol", Language.SPANISH),
+    ("lang:so", Language.SOMALI),
+    ("lang=somali", Language.SOMALI),
+    ("lang:english", Language.ENGLISH),
+    ("lang:en", Language.ENGLISH),
 ]
 
 
@@ -105,3 +117,24 @@ def test_texted_coordinates_keep_their_comma():
     spaced = parse_sms("shelter 44.9778, -93.2650")
     assert spaced is not None
     assert parse_coordinates(spaced.location) is not None
+
+
+def test_colon_attached_directive_replies_in_the_senders_language():
+    # Regression: "refugio minneapolis lang:es" used to leave "lang:es" in the
+    # location and answer "unknown location" in English.
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    client = TestClient(app)
+    for i, (body, expected) in enumerate([
+        ("refugio minneapolis lang:es", "Recursos más cercanos"),
+        ("cunto 55103 lang:so", "Adeegyada kuugu dhow"),
+        ("shelter 55415 lang=english", "Nearest resources"),
+    ]):
+        response = client.post("/sms", data={"Body": body, "From": f"+155555503{i:02d}"})
+        assert response.status_code == 200
+        message = re.search(r"<Message>(.*?)</Message>", response.text, re.S).group(1)
+        assert expected in message, body
+        assert "211" in message and "911" in message

@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 
 
@@ -78,8 +79,17 @@ AVAILABILITY = {
 }
 
 
+# Senders naturally attach the code with a colon or equals sign ("lang:es",
+# "lang=so", "lang : es"). Normalize those to the advertised "lang es" form
+# before tokenizing, in both parse_language and strip_language_directive: the
+# two tokenize independently, and when they disagree the leftover directive
+# becomes the location and a valid city answers "unknown location" in the
+# wrong language.
+_DIRECTIVE_SEPARATOR = re.compile(r"\blang\s*[:=]\s*", re.IGNORECASE)
+
+
 def parse_language(text: str) -> Language:
-    tokens = text.lower().replace(",", " ").split()
+    tokens = _DIRECTIVE_SEPARATOR.sub("lang ", text.lower()).replace(",", " ").split()
     for index, token in enumerate(tokens):
         if token == "lang" and index + 1 < len(tokens):
             return ALIASES.get(tokens[index + 1], Language.ENGLISH)
@@ -91,11 +101,12 @@ def parse_language(text: str) -> Language:
 def strip_language_directive(text: str) -> str:
     # Tokens split on whitespace only: coordinates like "44.9,-93.2" keep the
     # comma they need. The "lang" directive is the one form whose code can
-    # attach with a comma ("lang,es"): parse_language treats commas as
-    # separators and detects it, so it must be removed here too, or the
+    # attach with a comma ("lang,es") or a colon/equals sign ("lang:es",
+    # normalized by _DIRECTIVE_SEPARATOR): parse_language treats those as
+    # separators and detects them, so they must be removed here too, or the
     # leftover text becomes the location and a valid city answers "unknown
     # location" in the sender's own language.
-    tokens = text.split()
+    tokens = _DIRECTIVE_SEPARATOR.sub("lang ", text).split()
     cleaned: list[str] = []
     skip_next = False
     for index, token in enumerate(tokens):
