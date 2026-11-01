@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from html import escape
 
 from .geocoding import LEADING_PREPOSITIONS
+from .search import distance_miles
 from .i18n import (AVAILABILITY, MESSAGES, Language, language_signal,
                     strip_language_directive)
 from .models import ResourceCategory, ResourceResult
@@ -69,10 +70,19 @@ class SmsQuery:
     language: Language = Language.ENGLISH
 
 
-def parse_sms(body: str) -> SmsQuery | None:
+ZIP_CODE_PATTERN = re.compile(r"\b[0-9]{5}\b")
+
+# A texted ZIP centroid and a texted place can disagree: "55415" sits in
+# downtown Minneapolis while "saint paul" resolves across the river. Covered
+# places and their own ZIPs measure under two miles apart; contradictory pairs
+# measure six or more. Five miles separates the two cases with room to spare.
+LOCATION_DISAGREEMENT_MILES = 5.0
+
+
+def parse_sms(body: str, geocode=None) -> SmsQuery | None:
     language = detect_language(body)
     text = " ".join(strip_language_directive(body).lower().split())
-    zip_codes = set(re.findall(r"\b[0-9]{5}\b", text))
+    zip_codes = set(ZIP_CODE_PATTERN.findall(text))
     # Multiple distinct locations need clarification, not a referral for the first ZIP.
     if len(zip_codes) > 1:
         return None
@@ -82,7 +92,26 @@ def parse_sms(body: str) -> SmsQuery | None:
         return None
     category = next(iter(categories), None)
     if zip_codes:
-        return SmsQuery(next(iter(zip_codes)), category, language)
+        zip_code = next(iter(zip_codes))
+        if geocode is not None:
+            remainder = " ".join(
+                ZIP_CODE_PATTERN.sub("", CATEGORY_PATTERN.sub("", text)).split()).strip(" ,")
+            if remainder and remainder not in LEADING_PREPOSITIONS:
+                try:
+                    zip_coordinates = geocode(zip_code)
+                    place_coordinates = geocode(remainder)
+                except Exception:
+                    # A geocoder outage must not become a webhook 500: the ZIP
+                    # alone still routes, and the resolution path has its own guard.
+                    zip_coordinates = place_coordinates = None
+                if (zip_coordinates and place_coordinates
+                        and distance_miles(*zip_coordinates, *place_coordinates)
+                        > LOCATION_DISAGREEMENT_MILES):
+                    # Two known but contradictory locations ("55415 saint paul"):
+                    # ask which one, never guess. Unresolvable extra text
+                    # ("55415 please") does not block the ZIP.
+                    return None
+        return SmsQuery(zip_code, category, language)
     # The text keeps its preposition ("shelter in Minneapolis"): the geocoder
     # forgives one leading preposition only after the literal text fails, so
     # "Near North" - a real neighborhood - resolves instead of being mangled to

@@ -227,7 +227,7 @@ def respond_to_sms_form(form) -> Response:
     language = detect_language(body)
     if prototype_data_only():
         return Response(twiml(MESSAGES[language]["not_live"]), media_type="application/xml")
-    query = parse_sms(body)
+    query = parse_sms(body, geocode=geocoder.geocode)
     if not query:
         message = MESSAGES[language]["help"]
     else:
