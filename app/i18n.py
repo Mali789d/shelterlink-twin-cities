@@ -88,14 +88,23 @@ AVAILABILITY = {
 _DIRECTIVE_SEPARATOR = re.compile(r"\blang\s*[:=]\s*", re.IGNORECASE)
 
 
-def parse_language(text: str) -> Language:
+def language_signal(text: str) -> Language | None:
+    """The explicitly requested language, or None when the message carries no
+    directive or language name. Callers that only infer a language when the
+    sender gave no signal need the None case; parse_language keeps its
+    ENGLISH default for everyone else."""
     tokens = _DIRECTIVE_SEPARATOR.sub("lang ", text.lower()).replace(",", " ").split()
     for index, token in enumerate(tokens):
         if token == "lang" and index + 1 < len(tokens):
             return ALIASES.get(tokens[index + 1], Language.ENGLISH)
         if token in WORD_ALIASES:
             return WORD_ALIASES[token]
-    return Language.ENGLISH
+    return None
+
+
+def parse_language(text: str) -> Language:
+    signal = language_signal(text)
+    return signal if signal is not None else Language.ENGLISH
 
 
 def strip_language_directive(text: str) -> str:

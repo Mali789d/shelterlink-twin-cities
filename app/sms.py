@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from html import escape
 
 from .geocoding import LEADING_PREPOSITIONS
-from .i18n import AVAILABILITY, MESSAGES, Language, parse_language, strip_language_directive
+from .i18n import (AVAILABILITY, MESSAGES, Language, language_signal,
+                    strip_language_directive)
 from .models import ResourceCategory, ResourceResult
 
 # Match complete words/phrases, never substrings in location names (Bedford, Warman).
@@ -25,9 +26,40 @@ CATEGORY_WORDS = {
     "ducha": ResourceCategory.SHOWER,
     "qubays": ResourceCategory.SHOWER,
 }
+# The language each non-English category word demonstrates. A sender who texts
+# entirely in Spanish or Somali gets that language's reviewed templates without
+# having to first read English instructions about the "lang" directive.
+CATEGORY_WORD_LANGUAGES = {
+    "refugio": Language.SPANISH,
+    "comida": Language.SPANISH,
+    "ducha": Language.SPANISH,
+    "centro de calor": Language.SPANISH,
+    "hoy": Language.SOMALI,
+    "cunto": Language.SOMALI,
+    "qubays": Language.SOMALI,
+    "meel diirran": Language.SOMALI,
+}
+
 CATEGORY_PATTERN = re.compile(
     r"\b(?:" + "|".join(re.escape(word) for word in sorted(CATEGORY_WORDS, key=len, reverse=True)) + r")\b"
 )
+
+
+def detect_language(body: str) -> Language:
+    """The reply language: an explicit signal wins; otherwise infer it from the
+    sender's own category words, but only when every category word they used
+    belongs to a single non-English language. One English word ("comida and
+    shelter") or words from two languages veto the guess and keep English -
+    the same conservative shape as the bare "es"/"so" code guard."""
+    explicit = language_signal(body)
+    if explicit is not None:
+        return explicit
+    text = " ".join(strip_language_directive(body).lower().split())
+    words = [match.group() for match in CATEGORY_PATTERN.finditer(text)]
+    languages = {CATEGORY_WORD_LANGUAGES.get(word) for word in words}
+    if words and None not in languages and len(languages) == 1:
+        return next(iter(languages))
+    return Language.ENGLISH
 
 
 @dataclass(frozen=True)
@@ -38,7 +70,7 @@ class SmsQuery:
 
 
 def parse_sms(body: str) -> SmsQuery | None:
-    language = parse_language(body)
+    language = detect_language(body)
     text = " ".join(strip_language_directive(body).lower().split())
     zip_codes = set(re.findall(r"\b[0-9]{5}\b", text))
     # Multiple distinct locations need clarification, not a referral for the first ZIP.

@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 
 from .data import load_resources
 from .geocoding import DevelopmentGeocoder, parse_coordinates
-from .i18n import MESSAGES, Language, parse_language
+from .i18n import MESSAGES, Language
 from .idempotency import ReplyCache
 from .keywords import (
     InMemoryOptOutStore, Keyword, OptOutStore, classify_keyword, durable_opt_out_store,
@@ -16,7 +16,7 @@ from .models import ResourceCategory, ResourceResult
 from .search import find_resources, validate_coordinates
 from .readiness import readiness_checks
 from .security import Verdict, WebhookSecurity
-from .sms import format_results, parse_sms, twiml
+from .sms import detect_language, format_results, parse_sms, twiml
 from .throttle import ReplyThrottle
 from .webhook_form import read_sms_form
 
@@ -224,7 +224,7 @@ def respond_to_sms_form(form) -> Response:
         # no outbound message, so a runaway sender cannot run up reply charges.
         return Response(twiml(None), media_type="application/xml")
 
-    language = parse_language(body)
+    language = detect_language(body)
     if prototype_data_only():
         return Response(twiml(MESSAGES[language]["not_live"]), media_type="application/xml")
     query = parse_sms(body)
