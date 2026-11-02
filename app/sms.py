@@ -45,6 +45,16 @@ CATEGORY_PATTERN = re.compile(
     r"\b(?:" + "|".join(re.escape(word) for word in sorted(CATEGORY_WORDS, key=len, reverse=True)) + r")\b"
 )
 
+# "Open now" as a filter, in the same reviewed words the replies use for the
+# open status. Like the category words, the non-English spellings demonstrate
+# the sender's language for detect_language.
+OPEN_NOW_PATTERN = re.compile(r"\b(?:open(?:\s+now)?|abierto|abierta|furan)\b")
+OPEN_NOW_WORD_LANGUAGES = {
+    "abierto": Language.SPANISH,
+    "abierta": Language.SPANISH,
+    "furan": Language.SOMALI,
+}
+
 
 def detect_language(body: str) -> Language:
     """The reply language: an explicit signal wins; otherwise infer it from the
@@ -57,7 +67,9 @@ def detect_language(body: str) -> Language:
         return explicit
     text = " ".join(strip_language_directive(body).lower().split())
     words = [match.group() for match in CATEGORY_PATTERN.finditer(text)]
-    languages = {CATEGORY_WORD_LANGUAGES.get(word) for word in words}
+    words += [match.group() for match in OPEN_NOW_PATTERN.finditer(text)]
+    languages = {CATEGORY_WORD_LANGUAGES.get(word, OPEN_NOW_WORD_LANGUAGES.get(word))
+                 for word in words}
     if words and None not in languages and len(languages) == 1:
         return next(iter(languages))
     return Language.ENGLISH
@@ -68,6 +80,7 @@ class SmsQuery:
     location: str
     category: ResourceCategory | None
     language: Language = Language.ENGLISH
+    open_now: bool = False
 
 
 ZIP_CODE_PATTERN = re.compile(r"\b[0-9]{5}\b")
@@ -82,6 +95,9 @@ LOCATION_DISAGREEMENT_MILES = 5.0
 def parse_sms(body: str, geocode=None) -> SmsQuery | None:
     language = detect_language(body)
     text = " ".join(strip_language_directive(body).lower().split())
+    open_now = bool(OPEN_NOW_PATTERN.search(text))
+    if open_now:
+        text = " ".join(OPEN_NOW_PATTERN.sub("", text).split())
     zip_codes = set(ZIP_CODE_PATTERN.findall(text))
     # Multiple distinct locations need clarification, not a referral for the first ZIP.
     if len(zip_codes) > 1:
@@ -111,7 +127,7 @@ def parse_sms(body: str, geocode=None) -> SmsQuery | None:
                     # ask which one, never guess. Unresolvable extra text
                     # ("55415 please") does not block the ZIP.
                     return None
-        return SmsQuery(zip_code, category, language)
+        return SmsQuery(zip_code, category, language, open_now)
     # The text keeps its preposition ("shelter in Minneapolis"): the geocoder
     # forgives one leading preposition only after the literal text fails, so
     # "Near North" - a real neighborhood - resolves instead of being mangled to
@@ -119,7 +135,7 @@ def parse_sms(body: str, geocode=None) -> SmsQuery | None:
     location = " ".join(CATEGORY_PATTERN.sub("", text).split()).strip(" ,")
     if not location or location in LEADING_PREPOSITIONS:
         return None
-    return SmsQuery(location, category, language)
+    return SmsQuery(location, category, language, open_now)
 
 
 # Carrier ceilings for concatenated SMS (Twilio's SMS length glossary and error

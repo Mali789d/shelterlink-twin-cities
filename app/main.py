@@ -246,6 +246,7 @@ def respond_to_sms_form(form) -> Response:
             message = MESSAGES[query.language]["unknown_location"]
         else:
             found = find_resources(resources, *coordinates, category=query.category,
-                                   limit=3, radius_miles=SMS_SEARCH_RADIUS_MILES)
+                                   open_now=query.open_now, limit=3,
+                                   radius_miles=SMS_SEARCH_RADIUS_MILES)
             message = format_results(found, query.language)
     return Response(twiml(message), media_type="application/xml")
