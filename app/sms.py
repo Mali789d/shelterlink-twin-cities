@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from html import escape
 
 from .geocoding import LEADING_PREPOSITIONS
-from .search import distance_miles
+from .search import distance_miles, validate_coordinates
 from .i18n import (AVAILABILITY, MESSAGES, Language, language_signal,
                     strip_language_directive)
 from .models import ResourceCategory, ResourceResult
@@ -116,17 +116,19 @@ def parse_sms(body: str, geocode=None) -> SmsQuery | None:
                 try:
                     zip_coordinates = geocode(zip_code)
                     place_coordinates = geocode(remainder)
+                    if zip_coordinates is not None and place_coordinates is not None:
+                        # Resolvers are external boundaries: successful calls can
+                        # still return NaN, wrong shapes, or out-of-range values.
+                        # Validate and compare inside the same outage guard.
+                        validate_coordinates(*zip_coordinates)
+                        validate_coordinates(*place_coordinates)
+                        if distance_miles(*zip_coordinates, *place_coordinates) > LOCATION_DISAGREEMENT_MILES:
+                            return None
                 except Exception:
-                    # A geocoder outage must not become a webhook 500: the ZIP
-                    # alone still routes, and the resolution path has its own guard.
-                    zip_coordinates = place_coordinates = None
-                if (zip_coordinates and place_coordinates
-                        and distance_miles(*zip_coordinates, *place_coordinates)
-                        > LOCATION_DISAGREEMENT_MILES):
-                    # Two known but contradictory locations ("55415 saint paul"):
-                    # ask which one, never guess. Unresolvable extra text
-                    # ("55415 please") does not block the ZIP.
-                    return None
+                    # A failed or malformed comparison must not become a webhook
+                    # 500. Preserve the ZIP; normal resolution validates it again
+                    # before any referral can be sent. Never log provider data.
+                    pass
         return SmsQuery(zip_code, category, language, open_now)
     # The text keeps its preposition ("shelter in Minneapolis"): the geocoder
     # forgives one leading preposition only after the literal text fails, so
