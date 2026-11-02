@@ -51,8 +51,11 @@ def _parse_time(text: str) -> str:
     minute = match.group(2)
     meridiem = match.group(3)
     if meridiem:
-        if hour > 12:
-            raise ValueError(f"time {text!r} mixes 24-hour and AM/PM formats")
+        if not 1 <= hour <= 12:
+            # A zero-hour AM/PM value is neither midnight nor noon. Do not
+            # silently turn a dirty provider value such as "00:30 PM" into
+            # a plausible 12:30 opening time; reject it for human review.
+            raise ValueError(f"time {text!r} requires an hour from 1 through 12 with AM/PM")
         hour = hour % 12 + (12 if meridiem.startswith("p") else 0)
         minute = minute or "00"
     elif minute is None:

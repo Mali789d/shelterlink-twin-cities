@@ -164,3 +164,38 @@ def test_overlapping_reopen_intervals_fail_model_validation():
     record["hours"] = {str(day): intervals for day, intervals in parsed.items()}
     with pytest.raises(ValidationError):
         Resource.model_validate(record)
+
+
+@pytest.mark.parametrize("clock", [
+    "0 AM", "00 AM", "0:30 AM", "00:30 AM", "0 PM", "00 PM",
+    "0:30 PM", "00:30 PM", "0 a.m.", "00:30 p.m.", "13 AM", "13:00 PM",
+])
+@pytest.mark.parametrize("position", ["start", "end"])
+def test_meridiem_hours_outside_one_through_twelve_reject(clock, position):
+    text = f"Mon {clock}-11:59 PM" if position == "start" else f"Mon 12 AM-{clock}"
+    with pytest.raises(ValueError, match="hour from 1 through 12"):
+        parse_hours_text(text)
+
+
+@pytest.mark.parametrize("clock", ["0 AM", "00:30 AM", "0 PM", "00:30 PM"])
+def test_dirty_meridiem_row_rejects_without_losing_good_rows(clock):
+    report = ingest_records([
+        provider_record(ProviderID="good", HoursText="Mon 12 AM-12 PM"),
+        provider_record(ProviderID="bad", HoursText=f"Mon {clock}-5 PM"),
+    ], dict(MAPPING, hours="HoursText"))
+    assert [item.id for item in report["candidates"]] == ["good"]
+    assert report["candidates"][0].hours == {0: [("00:00", "12:00")]}
+    assert report["candidates"][0].is_sample is True
+    assert report["rejections"][0]["record_id"] == "bad"
+    assert "hour from 1 through 12" in report["rejections"][0]["errors"][0]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Mon 12 AM-12 PM", [("00:00", "12:00")]),
+    ("Mon 12:30 AM-12:30 PM", [("00:30", "12:30")]),
+    ("Mon 1 AM-1 PM", [("01:00", "13:00")]),
+    ("Mon 00:30-13:00", [("00:30", "13:00")]),
+    ("Mon 12 PM-24:00", [("12:00", "24:00")]),
+])
+def test_valid_noon_midnight_and_24_hour_clocks_stay_supported(text, expected):
+    assert parse_hours_text(text) == {0: expected}
