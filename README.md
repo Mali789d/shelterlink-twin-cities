@@ -280,6 +280,19 @@ The flags are deterministic review hints only - they never merge records, never 
 winner, catch formatting drift rather than naming variants, and report record IDs and
 rules only, so no contact details leave the snapshot.
 
+## Verified directory seed
+
+`data/verified_resources.json` holds the first non-sample records: four Twin
+Cities shelters and meal sites whose name, address and phone were checked
+against the provider's own website on the recorded `verified_at` date (the
+`source_url` on each record is the exact page used). Availability stays
+`unknown` and hours stay empty, so nothing in the seed can be shown as an
+open-now or bed claim. Like any other snapshot it expires: 24 hours after
+verification the audit flags the records as stale and the export refuses them
+until they are checked again. This is provenance groundwork for the roadmap's
+verified-import item, not a launch - the serving API, SMS replies and bundled
+sample data are unchanged.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
