@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .data import MAX_SNAPSHOT_BYTES, load_resources
 from .duplicates import find_possible_duplicates
+from .models import Resource
 
 POLICIES = ("reject", "replace", "keep")
 
@@ -24,6 +25,19 @@ NOTICE = "Merged snapshot is review input only. Not provider verification or pub
 def merge_resources(base, candidate, on_conflict="reject") -> dict:
     if on_conflict not in POLICIES:
         raise ValueError(f"conflict policy must be one of: {', '.join(POLICIES)}")
+    # The file entry point validates snapshots, but direct callers can pass
+    # generators, duplicate IDs, or model_copy objects that bypass validation.
+    # Check each input before indexing: a dict would silently pick the last
+    # duplicate candidate, even when "replace" only approved cross-input IDs.
+    def checked(items, label):
+        result = [Resource.model_validate(item.model_dump()) for item in items]
+        ids = [item.id for item in result]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"{label} snapshot contains duplicate IDs")
+        return result
+
+    base = checked(base, "base")
+    candidate = checked(candidate, "candidate")
     base_ids = {resource.id for resource in base}
     conflicts = sorted({resource.id for resource in candidate} & base_ids)
     if conflicts and on_conflict == "reject":

@@ -188,3 +188,46 @@ def test_merge_reports_no_contact_details_in_duplicate_flags(tmp_path):
                                resource("hc-102", "Second Site", phone="6125550100"))
     report = merge_files(base, candidate, tmp_path / "merged.json")
     assert "5550100" not in json.dumps(report["possible_duplicates"])
+
+
+@pytest.mark.parametrize("policy", ["reject", "replace", "keep"])
+@pytest.mark.parametrize("side", ["base", "candidate"])
+def test_direct_merge_rejects_duplicate_ids_within_either_input(policy, side):
+    duplicate = validated(resource("duplicated"), resource("duplicated", "Different Site"))
+    base = duplicate if side == "base" else validated(resource("base"))
+    candidate = duplicate if side == "candidate" else validated(resource("candidate"))
+    with pytest.raises(ValueError, match=f"{side} snapshot contains duplicate IDs"):
+        merge_resources(base, candidate, on_conflict=policy)
+
+
+@pytest.mark.parametrize("side", ["base", "candidate"])
+@pytest.mark.parametrize("update", [
+    {"latitude": float("nan")}, {"is_sample": "false"}, {"hours": {0: [("17:00", "09:00")]}},
+])
+def test_direct_merge_revalidates_models_that_bypassed_validation(side, update):
+    original = validated(resource(side))[0]
+    malformed = original.model_copy(update=update)
+    base = [malformed] if side == "base" else []
+    candidate = [malformed] if side == "candidate" else []
+    with pytest.raises(ValueError):
+        merge_resources(base, candidate)
+    # The caller's original record was not modified while checking its copy.
+    assert original.is_sample is True
+    assert original.latitude == 44.98
+
+
+def test_generator_inputs_are_consumed_once_and_preserve_all_records():
+    base = (item for item in validated(resource("base")))
+    candidate = (item for item in validated(resource("candidate")))
+    result = merge_resources(base, candidate)
+    assert [item.id for item in result["resources"]] == ["base", "candidate"]
+    assert result["added"] == ["candidate"]
+    assert all(item.is_sample is True for item in result["resources"])
+
+
+def test_checked_merge_does_not_mutate_inputs():
+    base = validated(resource("base"))
+    candidate = validated(resource("candidate"))
+    before = [item.model_dump() for item in base + candidate]
+    merge_resources(base, candidate)
+    assert [item.model_dump() for item in base + candidate] == before
