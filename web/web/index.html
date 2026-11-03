@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>ShelterLink Twin Cities - local-test directory</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; line-height: 1.45; }
+  main { max-width: 40rem; margin: 0 auto; padding: 1rem; }
+  .banner { border: 2px solid #b45309; background: #fef3c7; color: #1c1917;
+    padding: .6rem .8rem; border-radius: .4rem; font-weight: 600; }
+  form { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  label { width: 100%; font-weight: 600; }
+  input[type="text"] { flex: 1 1 12rem; padding: .5rem; font-size: 1rem; }
+  select, button { padding: .5rem .7rem; font-size: 1rem; }
+  #status { font-weight: 600; margin: .8rem 0; }
+  ol { padding-left: 1.2rem; }
+  li { margin-bottom: .9rem; }
+  .result-name { display: inline; }
+  .result-distance { font-weight: 600; margin-left: .4rem; }
+  .result-category { margin-left: .4rem; font-style: italic; }
+  .result-address { display: block; }
+  .result-phone, .result-website { margin-right: .8rem; }
+  .result-source { display: block; color: #57534e; }
+  footer { margin-top: 1.5rem; border-top: 1px solid #a8a29e;
+    padding-top: .6rem; font-size: .95rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ShelterLink Twin Cities</h1>
+  <p class="banner">Local-test prototype. Listings appear only from a fresh, verified
+    directory export. This page is not a live referral service.</p>
+  <form id="search-form" action="" method="get">
+    <label for="location">ZIP, city, neighborhood, or &quot;latitude, longitude&quot;</label>
+    <input type="text" id="location" name="location" maxlength="100"
+      autocomplete="off" placeholder="55401 or Frogtown">
+    <select id="category" name="category">
+      <option value="">All services</option>
+      <option value="shelter">Shelter</option>
+      <option value="meal">Meal</option>
+      <option value="warming">Warming center</option>
+      <option value="shower">Shower</option>
+    </select>
+    <button type="submit">Search</button>
+    <button type="button" id="refresh">Refresh directory</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <ol id="results"></ol>
+  <footer>
+    <p id="notice"></p>
+    <p>Prototype notices: SMS consent and data-handling drafts are served by the API
+      at <code>/privacy</code> and <code>/terms</code> during local testing.</p>
+  </footer>
+</main>
+<script type="module" src="./index.mjs"></script>
+</body>
+</html>
