@@ -91,6 +91,27 @@ all resolve to the same place, while anything still unknown is rejected rather t
 guessed. A texted `"latitude, longitude"` pair also works, mirroring the browser
 location input.
 
+## Static directory page (local test)
+
+`web/index.html` is a zero-cost static page that wires the tested browser modules
+into a working local directory. It loads a fresh, verified export - generate one
+with `python -m app.export_directory <verified-snapshot.json> web/directory.json`
+- and refuses to show anything else: stale, sample or invalid snapshots fail
+closed to an "unavailable" message with 211/911 guidance, and a refresh clears
+previous results before fetching. Searches run entirely in the browser against
+the same ZIP/place map as SMS; coordinates never leave the page. Serve it over
+local HTTP (module scripts do not load from `file://`):
+
+```bash
+python -m http.server 8000
+# open http://localhost:8000/web/
+```
+
+The page is local-test groundwork, not a launched referral website: it carries a
+prototype banner, shows each listing's source and verification date, and never
+displays hours, availability or open-now claims, which the export deliberately
+omits. `web/directory.json` is generated output and is git-ignored.
+
 ## Webhook security
 
 When `TWILIO_AUTH_TOKEN` is set, `/sms` only accepts requests carrying a valid
