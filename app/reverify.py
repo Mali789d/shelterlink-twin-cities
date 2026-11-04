@@ -1,8 +1,8 @@
 """Record human re-verification of directory records; never fabricate it.
 
 A record's ``verified_at`` asserts a person checked the provider's own source on
-that date. This module is the only path that moves that date forward, and it
-does so only when the operator explicitly names each record they re-checked.
+that date. This module records an operator assertion, not proof of a provider check. It
+moves that date forward only for explicitly named records.
 It cannot move a date backward, touch sample records, or guess: an unchecked
 record keeps its old date and goes stale on schedule.
 """
@@ -10,7 +10,7 @@ import argparse
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .data import MAX_SNAPSHOT_BYTES, load_resources
@@ -24,8 +24,25 @@ def _aware(at: datetime) -> datetime:
     return at
 
 
+def _validated(resources):
+    checked = [Resource.model_validate(item.model_dump()) for item in resources]
+    if len({item.id for item in checked}) != len(checked):
+        raise ValueError("duplicate resource IDs")
+    return checked
+
+
+def _horizon_hours(value):
+    try:
+        hours = int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError("hours must be an integer from 0 to 168") from None
+    if not 0 <= hours <= 168:
+        raise argparse.ArgumentTypeError("hours must be an integer from 0 to 168")
+    return hours
+
+
 def due_resources(resources: list[Resource], at: datetime,
-                  within=None) -> list[dict]:
+                  within: timedelta | None = None) -> list[dict]:
     """IDs and source URLs of records needing a fresh human check.
 
     A record is due once stale, or when it expires within ``within`` (a
@@ -33,12 +50,17 @@ def due_resources(resources: list[Resource], at: datetime,
     Reports provenance pointers only, matching the audit's disclosure rules.
     """
     at = _aware(at)
-    checked = [Resource.model_validate(item.model_dump()) for item in resources]
+    if within is not None and (not isinstance(within, timedelta)
+                               or not timedelta(0) <= within <= timedelta(days=7)):
+        raise ValueError("due horizon must be a timedelta from zero to seven days")
+    # A horizon means elapsed time, not local wall time across DST transitions.
+    horizon = at.astimezone(timezone.utc) + (within or timedelta(0))
+    checked = _validated(resources)
     due = []
     for item in checked:
         stale = resource_freshness(item, at) is not Freshness.CURRENT
         expiring = within is not None and not stale and (
-            resource_freshness(item, at + within) is not Freshness.CURRENT)
+            resource_freshness(item, horizon) is not Freshness.CURRENT)
         if stale or expiring:
             due.append({"id": item.id, "source_url": str(item.source_url),
                         "verified_at": item.verified_at.isoformat(),
@@ -53,11 +75,12 @@ def reverify(resources: list[Resource], checked_ids: set[str], at: datetime) -> 
     with real records instead); the new date must be aware, not in the future
     relative to nothing we can know, and never earlier than the record's
     current verified_at. Untouched records keep their own provenance.
+    Naming an ID asserts a check; this function cannot authenticate that assertion.
     """
     at = _aware(at)
     if not checked_ids:
         raise ValueError("name each record that was re-checked; nothing is verified by default")
-    checked = [Resource.model_validate(item.model_dump()) for item in resources]
+    checked = _validated(resources)
     known = {item.id for item in checked}
     unknown = checked_ids - known
     if unknown:
@@ -107,11 +130,18 @@ def main():
                         help="record ID re-checked against its source_url; repeat per record")
     parser.add_argument("--due", action="store_true",
                         help="list records due for re-verification and exit")
+    parser.add_argument("--within-hours", type=_horizon_hours, metavar="HOURS",
+                        help="with --due, include records expiring within 0 to 168 elapsed hours")
     args = parser.parse_args()
+    if args.within_hours is not None and not args.due:
+        parser.error("--within-hours requires --due")
+    if args.due and args.checked:
+        parser.error("--due cannot be combined with --checked")
     now = datetime.now(timezone.utc)
     resources = load_resources(args.snapshot)
     if args.due:
-        for item in due_resources(resources, now):
+        for item in due_resources(resources, now, within=(
+                timedelta(hours=args.within_hours) if args.within_hours is not None else None)):
             print(f"{item['id']}\t{item['verified_at']}\t{item['source_url']}")
         return
     count = reverify_file(args.snapshot, set(args.checked), now)
