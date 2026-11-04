@@ -124,3 +124,71 @@ def test_added_and_removed_records_produce_no_regressions():
     report = compare_resources([item("gone")], [item("new")])
     assert report["regressions"] == []
     assert compare_resources([], [])["regressions"] == []
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", "New provider name"), ("address", "New site address"),
+    ("latitude", 44.99), ("longitude", -93.30), ("phone", "555-0199"),
+    ("website", "https://example.org/new"), ("category", "shower"),
+    ("hours", {0: [("08:00", "09:00")]}), ("availability", "full"),
+    ("source_name", "New provider"), ("source_url", "https://example.org/source"),
+])
+def test_changed_facts_cannot_quietly_inherit_an_old_verification(field, value):
+    resource = item()
+    report = compare_resources([resource], [resource.model_copy(update={field: value})])
+    assert report["verification_reviews"] == [{
+        "id": "fixture", "fields": [field], "promoted_from_sample": False}]
+    assert str(value) not in json.dumps(report)
+
+
+def test_sample_promotion_needs_a_fresh_check_even_without_changed_facts():
+    resource = item()
+    promoted = resource.model_copy(update={"is_sample": False})
+    assert compare_resources([resource], [promoted])["verification_reviews"] == [{
+        "id": "fixture", "fields": [], "promoted_from_sample": True}]
+
+
+def test_equal_instant_different_offset_does_not_hide_review():
+    resource = item().model_copy(update={"verified_at": "2026-11-04T12:00:00+00:00"})
+    changed = resource.model_copy(update={"phone": "555-0199",
+                                          "verified_at": "2026-11-04T06:00:00-06:00"})
+    assert compare_resources([resource], [changed])["verification_reviews"][0]["fields"] == ["phone"]
+
+
+def test_newer_date_is_not_a_missing_reverification_warning():
+    resource = item()
+    changed = resource.model_copy(update={"phone": "555-0199",
+        "verified_at": resource.verified_at + timedelta(seconds=1)})
+    report = compare_resources([resource], [changed])
+    assert report["verification_reviews"] == []
+    assert "Not provider verification" in report["notice"]
+
+
+def test_backwards_date_with_changed_facts_has_both_warnings():
+    resource = item()
+    changed = resource.model_copy(update={"phone": None,
+        "verified_at": resource.verified_at - timedelta(seconds=1)})
+    report = compare_resources([resource], [changed])
+    assert report["verification_reviews"][0]["fields"] == ["phone"]
+    assert report["regressions"][0]["verification_moved_backwards"] is True
+
+
+def test_reviews_are_sorted_and_do_not_expose_changed_values():
+    resources = [item("z"), item("a")]
+    changed = [r.model_copy(update={"phone": "555-0199", "address": "Private changed address",
+                                   "is_sample": False}) for r in resources]
+    report = compare_resources(resources, changed)
+    assert report["verification_reviews"] == [
+        {"id": rid, "fields": ["address", "phone"], "promoted_from_sample": True}
+        for rid in ["a", "z"]]
+    assert compare_resources(reversed(resources), reversed(changed)) == report
+    assert "555-0199" not in json.dumps(report)
+    assert "Private changed address" not in json.dumps(report)
+
+
+def test_timestamp_only_and_unchanged_and_added_removed_do_not_warn():
+    resource = item()
+    later = resource.model_copy(update={"verified_at": resource.verified_at + timedelta(hours=1)})
+    for before, after in [([resource], [later]), ([resource], [resource]),
+                          ([], [resource]), ([resource], []), ([], [])]:
+        assert compare_resources(before, after)["verification_reviews"] == []
