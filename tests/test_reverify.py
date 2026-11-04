@@ -131,9 +131,9 @@ def test_due_horizon_uses_elapsed_time_across_fall_back():
 def test_due_horizon_uses_elapsed_time_across_spring_forward():
     from zoneinfo import ZoneInfo
     zone = ZoneInfo("America/Chicago")
-    # Two elapsed hours from 00:30 CST end at 03:30 CDT. A wall-clock
-    # addition ends at the nonexistent 02:30, so use UTC for the horizon.
-    checked = datetime(2026, 3, 7, 7, 45, tzinfo=timezone.utc)
+    # Two elapsed hours from 01:30 CST end at 04:30 CDT. Wall-clock
+    # addition ends at 03:30 CDT, an hour short of the intended horizon.
+    checked = datetime(2026, 3, 7, 8, 45, tzinfo=timezone.utc)
     local_now = datetime(2026, 3, 8, 1, 30, tzinfo=zone)
     assert [row["id"] for row in due_resources([_record("a", checked)],
             local_now, within=timedelta(hours=2))] == ["a"]
