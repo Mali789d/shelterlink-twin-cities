@@ -26,11 +26,22 @@ def compare_resources(before, after):
     old, new = indexed(before), indexed(after)
     changes = []
     regressions = []
+    verification_reviews = []
     for identity in sorted(old.keys() & new.keys()):
         fields = sorted(key for key in old[identity] if old[identity][key] != new[identity][key])
         if not fields:
             continue
         changes.append({"id": identity, "fields": fields})
+        # A provider can change a phone, location, service or source while
+        # carrying yesterday's verification date forward. Highlight that the
+        # old check does not cover the new facts. A newer date is still only
+        # an operator assertion, never proof of verification or approval.
+        material = sorted(set(fields) - {"verified_at", "is_sample"})
+        promoted = old[identity]["is_sample"] and not new[identity]["is_sample"]
+        if (material or promoted) and (_instant(new[identity]["verified_at"])
+                                      <= _instant(old[identity]["verified_at"])):
+            verification_reviews.append({"id": identity, "fields": material,
+                                         "promoted_from_sample": promoted})
         # A provider re-export can quietly strip data. Call out the changes a
         # reviewer must not miss: contact channels or hours that disappeared, a
         # verification date that moved backwards, or a record sent back to sample.
@@ -51,6 +62,7 @@ def compare_resources(before, after):
         "removed": sorted(old.keys() - new.keys()),
         "changed": changes,
         "regressions": regressions,
+        "verification_reviews": verification_reviews,
         "unchanged_count": len(old.keys() & new.keys()) - len(changes),
     }
 
