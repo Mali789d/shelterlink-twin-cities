@@ -92,3 +92,80 @@ def test_reverify_file_round_trips_and_refuses_symlink(tmp_path):
     # The failed call left the file exactly as the successful one wrote it.
     assert {item.id: item.verified_at for item in load_resources(path)} == {
         "one": LATER, "two": AT}
+
+
+@pytest.mark.parametrize("within", [-1, 2.5, "2", timedelta(seconds=-1), timedelta(days=8)])
+def test_due_refuses_invalid_horizons(within):
+    with pytest.raises(ValueError, match="horizon"):
+        due_resources([_record("a")], AT, within=within)
+
+
+@pytest.mark.parametrize("operation", ["due", "reverify"])
+def test_direct_calls_refuse_duplicate_ids(operation):
+    records = [_record("same"), _record("same", AT - timedelta(days=1))]
+    with pytest.raises(ValueError, match="duplicate resource IDs"):
+        if operation == "due":
+            due_resources(records, LATER)
+        else:
+            reverify(records, {"same"}, LATER)
+
+
+@pytest.mark.parametrize("hour, expected", [(24, []), (25, ["a"])])
+def test_due_horizon_obeys_exact_freshness_boundary(hour, expected):
+    assert [row["id"] for row in due_resources(
+        [_record("a")], AT, within=timedelta(hours=hour))] == expected
+
+
+def test_due_horizon_uses_elapsed_time_across_fall_back():
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo("America/Chicago")
+    # At 00:30 CDT, two elapsed hours end at 01:30 CST, not 02:30 CST.
+    # This record will then be 23h45m old, still current. Wall-clock addition
+    # incorrectly makes it 24h45m old and queues it early.
+    checked = datetime(2026, 10, 31, 7, 45, tzinfo=timezone.utc)
+    local_now = datetime(2026, 11, 1, 0, 30, tzinfo=zone)
+    assert due_resources([_record("a", checked)], local_now,
+                         within=timedelta(hours=2)) == []
+
+
+def test_due_horizon_uses_elapsed_time_across_spring_forward():
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo("America/Chicago")
+    # Two elapsed hours from 00:30 CST end at 03:30 CDT. A wall-clock
+    # addition ends at the nonexistent 02:30, so use UTC for the horizon.
+    checked = datetime(2026, 3, 7, 7, 45, tzinfo=timezone.utc)
+    local_now = datetime(2026, 3, 8, 1, 30, tzinfo=zone)
+    assert [row["id"] for row in due_resources([_record("a", checked)],
+            local_now, within=timedelta(hours=2))] == ["a"]
+
+
+def _cli(tmp_path, *args):
+    import subprocess
+    import sys
+    path = tmp_path / "snapshot.json"
+    # Current at run time, but will expire well inside the requested 48h.
+    now = datetime.now(timezone.utc)
+    path.write_text(json.dumps([json.loads(_record("a", now).model_dump_json())]))
+    before = path.read_bytes()
+    process = subprocess.run([sys.executable, "-m", "app.reverify", str(path), *args],
+                             capture_output=True, text=True)
+    assert path.read_bytes() == before
+    return process
+
+
+def test_cli_can_list_expiring_records_without_modifying_dates(tmp_path):
+    process = _cli(tmp_path, "--due", "--within-hours", "48")
+    assert process.returncode == 0
+    assert "a\t" in process.stdout
+    assert "https://example.org/a" in process.stdout
+
+
+@pytest.mark.parametrize("args", [
+    ["--within-hours", "2"], ["--due", "--checked", "a"],
+    ["--due", "--within-hours", "-1"], ["--due", "--within-hours", "169"],
+    ["--due", "--within-hours", "1.5"], ["--due", "--within-hours", "nan"],
+])
+def test_cli_rejects_invalid_or_conflicting_modes_without_writing(tmp_path, args):
+    process = _cli(tmp_path, *args)
+    assert process.returncode == 2
+    assert "error:" in process.stderr
