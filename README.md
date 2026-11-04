@@ -293,6 +293,14 @@ until they are checked again. This is provenance groundwork for the roadmap's
 verified-import item, not a launch - the serving API, SMS replies and bundled
 sample data are unchanged.
 
+`python -m app.reverify data/verified_resources.json --due` lists the records
+whose verification is stale or expiring, and `--checked <id>` (repeated per
+record) moves `verified_at` forward only for records a person just re-checked
+against the listed `source_url`. Re-verification is a recorded human act: the
+tool refuses to run without named records, rejects unknown IDs and sample
+records, never moves a date backward, rewrites the snapshot atomically, and
+leaves every unchecked record's provenance untouched.
+
 `python -m app.export_directory reviewed-resources.json directory.json` prepares a
 static JSON snapshot without accounts, hosting, phone-number rental or paid services.
 It rejects empty, sample, stale and future-dated input before touching the output.
