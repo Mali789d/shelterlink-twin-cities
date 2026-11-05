@@ -4,7 +4,10 @@ Each record hashes the full snapshot plus the previous record, so editing or
 reordering any earlier record breaks the chain at a checkable line. A local
 chain cannot prove the unanchored tail on its own: verifying against the
 current snapshot anchors the latest record's content, and version control
-covers the rest. History records operator review events only - never provider
+covers the rest. Link checks alone are not enough: a careful rewrite can
+recompute every hash, so the timeline is checked too. Records must stay in
+non-decreasing recorded_at order, no record may be dated in the future, and a
+new append may not predate the latest existing record. History records operator review events only - never provider
 verification, availability, or publication approval.
 """
 import argparse
@@ -73,12 +76,27 @@ def read_history(path) -> list:
     return records
 
 
+def _instant(value: str) -> datetime:
+    # read_history already validated the timestamp text and its timezone.
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def _chain_problems(records):
     problems = []
     previous_digest = None
+    latest_time = None
     for index, record in enumerate(records):
         if record["previous_sha256"] != previous_digest:
             problems.append(f"line {index + 1}: previous link does not match the earlier record")
+        # Hashes can be recomputed over a rewritten log; the review timeline
+        # cannot move backwards. Compare instants, so equal times in different
+        # offsets stay valid while any step back is flagged.
+        recorded = _instant(record["recorded_at"])
+        if latest_time is not None and recorded < latest_time:
+            problems.append(
+                f"line {index + 1}: recorded_at is earlier than a previous record")
+        if latest_time is None or recorded > latest_time:
+            latest_time = recorded
         previous_digest = _record_digest(record)
     return problems
 
@@ -109,6 +127,14 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
         # A naive clock value would write a timestamp that reads as a broken chain.
         raise ValueError("history timestamp must include a timezone")
     recorded_at = (at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    if recorded_at > datetime.now(timezone.utc):
+        raise ValueError("history record cannot be dated in the future")
+    if records:
+        # A retro-dated append would falsify the review order the log exists to
+        # document, and later verification would flag it as out of order.
+        latest = max(_instant(record["recorded_at"]) for record in records)
+        if recorded_at < latest:
+            raise ValueError("history record cannot predate the latest existing record")
     record = {
         "recorded_at": recorded_at.isoformat(),
         "snapshot_sha256": digest,
@@ -136,10 +162,22 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
     return record
 
 
-def verify_history(history_path, snapshot_path=None) -> dict:
-    """Check chain integrity and, optionally, anchor the tail to a live snapshot."""
+def verify_history(history_path, snapshot_path=None, at=None) -> dict:
+    """Check chain integrity and, optionally, anchor the tail to a live snapshot.
+
+    ``at`` is the verification instant (defaults to now): a record dated after
+    it claims a review that has not happened yet, so it is flagged like any
+    other incoherence. Chain and timeline checks cannot prove authorship; a
+    fully recomputed chain still needs the snapshot anchor and version control.
+    """
+    if at is not None and (at.tzinfo is None or at.utcoffset() is None):
+        raise ValueError("verification time must include a timezone")
+    checked_at = (at or datetime.now(timezone.utc)).astimezone(timezone.utc)
     records = read_history(history_path)
     problems = _chain_problems(records)
+    for index, record in enumerate(records):
+        if _instant(record["recorded_at"]) > checked_at:
+            problems.append(f"line {index + 1}: recorded_at is in the future")
     result = {
         "notice": "History integrity review only. Not provider verification or publication approval.",
         "record_count": len(records),

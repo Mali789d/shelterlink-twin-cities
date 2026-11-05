@@ -1,13 +1,14 @@
 """Change history is append-only, explained, and tamper-evident."""
+import hashlib
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.history import (MAX_NOTE_LENGTH, append_record, read_history, snapshot_digest,
-                         verify_history)
+from app.history import (MAX_NOTE_LENGTH, _record_digest, append_record, read_history,
+                         snapshot_digest, verify_history)
 from app.models import Resource
 
 AT = datetime(2026, 10, 20, 19, 0, tzinfo=timezone.utc)
@@ -248,3 +249,111 @@ def test_valid_history_still_extends_after_read_only_mismatch(tmp_path):
     assert report["chain_ok"] is True
     assert report["snapshot_matches_latest"] is True
     assert report["record_count"] == 2
+
+
+def _hand_built_chain(times):
+    """A hash-valid chain with chosen recorded_at values, built line by line.
+
+    append_record refuses retro- and future-dated records, so the only way a
+    time-incoherent chain exists is a rewrite that recomputed every link -
+    exactly the tamper shape verification must catch.
+    """
+    records = []
+    previous_digest = None
+    for index, recorded_at in enumerate(times):
+        record = {
+            "recorded_at": recorded_at.isoformat(),
+            "snapshot_sha256": hashlib.sha256(f"snapshot-{index}".encode()).hexdigest(),
+            "resource_count": 1,
+            "note": f"review {index}",
+            "previous_sha256": previous_digest,
+        }
+        previous_digest = _record_digest(record)
+        records.append(record)
+    return records
+
+
+def write_chain(path, records):
+    path.write_text("".join(json.dumps(record) + "\n" for record in records),
+                    encoding="utf-8")
+    return path
+
+
+def test_append_refuses_to_predate_the_latest_record_without_writing(tmp_path):
+    history = tmp_path / "history.jsonl"
+    first = write_snapshot(tmp_path / "v1.json", resource())
+    append_record(history, first, "v1 review", at=AT)
+    changed = write_snapshot(tmp_path / "v2.json", resource(name="New version"))
+    before = history.read_bytes()
+    with pytest.raises(ValueError, match="predate"):
+        append_record(history, changed, "Back-dated review",
+                      at=AT - timedelta(hours=1))
+    assert history.read_bytes() == before
+    assert not list(tmp_path.glob("tmp*"))
+
+
+def test_append_allows_the_same_instant_as_the_latest_record(tmp_path):
+    history = tmp_path / "history.jsonl"
+    first = write_snapshot(tmp_path / "v1.json", resource())
+    changed = write_snapshot(tmp_path / "v2.json", resource(name="New version"))
+    append_record(history, first, "v1 review", at=AT)
+    append_record(history, changed, "Same-clock review", at=AT)
+    assert len(read_history(history)) == 2
+    assert verify_history(history, changed)["chain_ok"] is True
+
+
+def test_append_refuses_a_future_dated_record(tmp_path):
+    history = tmp_path / "history.jsonl"
+    snapshot = write_snapshot(tmp_path / "v1.json", resource())
+    future = datetime.now(timezone.utc) + timedelta(hours=1)
+    with pytest.raises(ValueError, match="future"):
+        append_record(history, snapshot, "Review from tomorrow", at=future)
+    assert not history.exists()
+
+
+def test_verify_flags_out_of_order_records_even_with_valid_links(tmp_path):
+    history = tmp_path / "history.jsonl"
+    early = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+    later = early + timedelta(hours=6)
+    write_chain(history, _hand_built_chain([later, early, later + timedelta(hours=6)]))
+    result = verify_history(history, at=later + timedelta(days=1))
+    assert result["chain_ok"] is False
+    assert result["problems"] == ["line 2: recorded_at is earlier than a previous record"]
+    # An out-of-order chain is a broken chain: appends refuse to extend it.
+    snapshot = write_snapshot(tmp_path / "v1.json", resource())
+    before = history.read_bytes()
+    with pytest.raises(ValueError, match="refusing to extend broken history"):
+        append_record(history, snapshot, "Must not hide the rewrite",
+                      at=later + timedelta(days=2))
+    assert history.read_bytes() == before
+
+
+def test_verify_accepts_equal_timestamps_in_different_offsets(tmp_path):
+    history = tmp_path / "history.jsonl"
+    moment = datetime(2026, 10, 20, 17, 0, tzinfo=timezone.utc)
+    same_moment_other_offset = datetime(2026, 10, 20, 12, 0,
+                                        tzinfo=timezone(timedelta(hours=-5)))
+    write_chain(history, _hand_built_chain([moment, same_moment_other_offset]))
+    result = verify_history(history, at=moment + timedelta(days=1))
+    assert result["chain_ok"] is True
+    assert result["problems"] == []
+
+
+def test_verify_flags_a_future_dated_record(tmp_path):
+    history = tmp_path / "history.jsonl"
+    past = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    write_chain(history, _hand_built_chain([past, future]))
+    result = verify_history(history)
+    assert result["chain_ok"] is False
+    assert result["problems"] == ["line 2: recorded_at is in the future"]
+    # Verified from after that date, the same chain is time-coherent.
+    later = verify_history(history, at=future + timedelta(days=1))
+    assert later["chain_ok"] is True
+    assert later["problems"] == []
+
+
+def test_verify_rejects_a_naive_verification_time(tmp_path):
+    history = write_chain(tmp_path / "history.jsonl", _hand_built_chain([AT]))
+    with pytest.raises(ValueError, match="timezone"):
+        verify_history(history, at=datetime(2026, 10, 29, 12, 0))
