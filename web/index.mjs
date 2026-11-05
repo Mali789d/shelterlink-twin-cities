@@ -12,6 +12,7 @@ const elements = {
   form: document.getElementById('search-form'),
   location: document.getElementById('location'),
   category: document.getElementById('category'),
+  radius: document.getElementById('radius'),
   status: document.getElementById('status'),
   results: document.getElementById('results'),
   notice: document.getElementById('notice'),
@@ -97,10 +98,14 @@ function submitSearch(event) {
     render(session.search(null));
     return;
   }
+  // Forward only a finite, positive radius; a corrupted control falls back
+  // to the session default rather than bricking the search.
+  const radius = Number(elements.radius.value);
   render(session.search({
     latitude: point.latitude,
     longitude: point.longitude,
     category: elements.category.value || null,
+    radiusMiles: Number.isFinite(radius) && radius > 0 ? radius : undefined,
   }));
 }
 
