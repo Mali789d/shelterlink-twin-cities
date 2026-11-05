@@ -38,12 +38,20 @@
     <label for="location">ZIP, city, neighborhood, or &quot;latitude, longitude&quot;</label>
     <input type="text" id="location" name="location" maxlength="100"
       autocomplete="off" placeholder="55401 or Frogtown">
+    <label for="category">Service type</label>
     <select id="category" name="category">
       <option value="">All services</option>
       <option value="shelter">Shelter</option>
       <option value="meal">Meal</option>
       <option value="warming">Warming center</option>
       <option value="shower">Shower</option>
+    </select>
+    <label for="radius">Search radius</label>
+    <select id="radius" name="radius">
+      <option value="5">Within 5 miles</option>
+      <option value="10">Within 10 miles</option>
+      <option value="25" selected>Within 25 miles</option>
+      <option value="50">Within 50 miles</option>
     </select>
     <button type="submit">Search</button>
     <button type="button" id="refresh">Refresh directory</button>
