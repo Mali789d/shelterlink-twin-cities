@@ -96,3 +96,37 @@ def test_view_module_is_dom_free():
 def test_notice_wording_matches_sms_safety_footer():
     # The page's notice line carries the same 211/911 guidance as every SMS reply.
     assert "211" in VIEW and "911" in VIEW
+
+
+def test_category_select_is_labeled_and_matches_the_validated_category_set():
+    assert re.search(r'<label for="category">', PAGE), "the category control must be labeled"
+    match = re.search(r'<select id="category"[^>]*>(.*?)</select>', PAGE, re.DOTALL)
+    assert match, "the category control must be a select"
+    options = re.findall(r'<option value="([^"]*)"', match.group(1))
+    # The empty choice means "all services"; the rest mirror the category set the
+    # session and directory validate, so the page can never send an unknown value.
+    assert options == ["", "shelter", "meal", "warming", "shower"]
+
+
+def test_radius_select_is_labeled_with_bounded_choices_and_the_session_default():
+    assert re.search(r'<label for="radius">', PAGE), "the radius control must be labeled"
+    match = re.search(r'<select id="radius"[^>]*>(.*?)</select>', PAGE, re.DOTALL)
+    assert match, "the radius control must be a select"
+    options = re.findall(r'<option value="([^"]+)"([^>]*)>([^<]+)</option>', match.group(1))
+    # Fixed choices keep free-form numbers, and the text injected with them,
+    # out of the page; the session still revalidates whatever arrives.
+    assert [value for value, _, _ in options] == ["5", "10", "25", "50"]
+    assert all("miles" in label for _, _, label in options)
+    selected = [value for value, attrs, _ in options if "selected" in attrs]
+    # The markup default must match the session's own default radius (25 miles),
+    # or the page would show one radius while searching another.
+    assert selected == ["25"]
+
+
+def test_glue_forwards_only_a_finite_positive_radius():
+    assert "getElementById('radius')" in GLUE
+    forward = re.search(
+        r"radiusMiles:\s*Number\.isFinite\(radius\)\s*&&\s*radius\s*>\s*0"
+        r"\s*\?\s*radius\s*:\s*undefined", GLUE)
+    assert forward, ("glue must forward only a finite, positive radius; "
+                     "anything else falls back to the session default")
