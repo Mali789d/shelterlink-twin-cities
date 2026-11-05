@@ -188,3 +188,63 @@ def test_append_rejects_a_naive_timestamp(tmp_path):
     with pytest.raises(ValueError):
         append_record(history, snapshot, "review", at=datetime(2026, 10, 29, 12, 0))
     assert not history.exists()
+
+
+@pytest.mark.parametrize("damage", ["edit", "remove_first", "reorder", "bad_root", "bad_tail"])
+def test_append_refuses_to_extend_broken_history_without_writing(tmp_path, damage):
+    history = tmp_path / "history.jsonl"
+    snapshots = [write_snapshot(tmp_path / f"v{i}.json", resource(name=f"Version {i}"))
+                 for i in range(4)]
+    for index in range(3):
+        append_record(history, snapshots[index], f"Review {index}", at=AT)
+    lines = [json.loads(line) for line in history.read_text().splitlines()]
+    if damage == "edit":
+        lines[0]["note"] = "Changed earlier note"
+    elif damage == "remove_first":
+        lines.pop(0)
+    elif damage == "reorder":
+        lines[0], lines[1] = lines[1], lines[0]
+    elif damage == "bad_root":
+        lines[0]["previous_sha256"] = "a" * 64
+    else:
+        lines[-1]["previous_sha256"] = "b" * 64
+    history.write_text("\n".join(json.dumps(line) for line in lines) + "\n")
+    before = history.read_bytes()
+    snapshot_before = snapshots[-1].read_bytes()
+    assert verify_history(history)["chain_ok"] is False
+    with pytest.raises(ValueError, match="refusing to extend broken history: line"):
+        append_record(history, snapshots[-1], "New review must not hide break", at=AT)
+    assert history.read_bytes() == before
+    assert snapshots[-1].read_bytes() == snapshot_before
+    assert not list(tmp_path.glob("tmp*"))
+
+
+def test_cli_refuses_broken_chain_and_preserves_it(tmp_path):
+    history = tmp_path / "history.jsonl"
+    snapshot = write_snapshot(tmp_path / "v1.json", resource())
+    append_record(history, snapshot, "First review", at=AT)
+    record = json.loads(history.read_text())
+    record["previous_sha256"] = "not-the-root"
+    history.write_text(json.dumps(record) + "\n")
+    before = history.read_bytes()
+    changed = write_snapshot(tmp_path / "v2.json", resource(name="New version"))
+    process = subprocess.run([sys.executable, "-m", "app.history", "append", str(changed),
+        str(history), "--note", "New review"], capture_output=True, text=True)
+    assert process.returncode != 0
+    assert "refusing to extend broken history" in process.stderr
+    assert history.read_bytes() == before
+
+
+def test_valid_history_still_extends_after_read_only_mismatch(tmp_path):
+    # A snapshot mismatch is not a broken link: recording a real changed snapshot
+    # is the whole purpose of append. Keep these two checks separate.
+    history = tmp_path / "history.jsonl"
+    first = write_snapshot(tmp_path / "v1.json", resource())
+    next_snapshot = write_snapshot(tmp_path / "v2.json", resource(name="New version"))
+    append_record(history, first, "Initial", at=AT)
+    assert verify_history(history, next_snapshot)["snapshot_matches_latest"] is False
+    append_record(history, next_snapshot, "Reviewed changed snapshot", at=AT)
+    report = verify_history(history, next_snapshot)
+    assert report["chain_ok"] is True
+    assert report["snapshot_matches_latest"] is True
+    assert report["record_count"] == 2

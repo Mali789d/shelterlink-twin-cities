@@ -73,6 +73,16 @@ def read_history(path) -> list:
     return records
 
 
+def _chain_problems(records):
+    problems = []
+    previous_digest = None
+    for index, record in enumerate(records):
+        if record["previous_sha256"] != previous_digest:
+            problems.append(f"line {index + 1}: previous link does not match the earlier record")
+        previous_digest = _record_digest(record)
+    return problems
+
+
 def append_record(history_path, snapshot_path, note, at=None) -> dict:
     """Record one reviewed snapshot, refusing no-op and unexplained entries."""
     history_path, snapshot_path = Path(history_path), Path(snapshot_path)
@@ -89,6 +99,9 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
     resources = load_resources(snapshot_path)
     digest = snapshot_digest(resources)
     records = read_history(history_path)
+    problems = _chain_problems(records)
+    if problems:
+        raise ValueError("refusing to extend broken history: " + "; ".join(problems))
     previous = records[-1] if records else None
     if previous and previous["snapshot_sha256"] == digest:
         raise ValueError("snapshot is unchanged since the latest history record")
@@ -126,12 +139,7 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
 def verify_history(history_path, snapshot_path=None) -> dict:
     """Check chain integrity and, optionally, anchor the tail to a live snapshot."""
     records = read_history(history_path)
-    problems = []
-    previous_digest = None
-    for index, record in enumerate(records):
-        if record["previous_sha256"] != previous_digest:
-            problems.append(f"line {index + 1}: previous link does not match the earlier record")
-        previous_digest = _record_digest(record)
+    problems = _chain_problems(records)
     result = {
         "notice": "History integrity review only. Not provider verification or publication approval.",
         "record_count": len(records),
