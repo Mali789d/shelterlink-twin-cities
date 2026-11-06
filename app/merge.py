@@ -3,9 +3,12 @@
 Ingestion produces candidates and review compares snapshots; merging is the step
 that actually applies reviewed records. A provider re-export must never silently
 duplicate or overwrite directory entries, so ID conflicts are loud by default
-and every applied replacement is listed by ID. Merging changes no record: each
-keeps its own provenance and sample flag, and the output is review input for the
-existing audit, history and export tools - not verification or publication.
+and every applied replacement is listed by ID. A candidate identical to the base
+record applies no change: it is reported as unchanged, not as a replacement, so
+the reviewer never hunts for a phantom edit and no duplicate heuristic fires on
+a record nothing happened to. Merging changes no record: each keeps its own
+provenance and sample flag, and the output is review input for the existing
+audit, history and export tools - not verification or publication.
 """
 import argparse
 import json
@@ -43,12 +46,18 @@ def merge_resources(base, candidate, on_conflict="reject") -> dict:
     if conflicts and on_conflict == "reject":
         raise ValueError("candidate IDs already exist in the base snapshot: "
                          + ", ".join(conflicts))
-    merged, replaced, skipped = [], [], []
+    merged, replaced, skipped, unchanged = [], [], [], []
     candidate_by_id = {resource.id: resource for resource in candidate}
     for resource in base:
-        if resource.id in candidate_by_id and on_conflict == "replace":
-            merged.append(candidate_by_id[resource.id])
-            replaced.append(resource.id)
+        update = candidate_by_id.get(resource.id)
+        if update is not None and on_conflict == "replace":
+            if update == resource:
+                # Same content: nothing was applied, so this is not a replacement.
+                unchanged.append(resource.id)
+                merged.append(resource)
+            else:
+                merged.append(update)
+                replaced.append(resource.id)
         else:
             merged.append(resource)
     added = []
@@ -71,6 +80,7 @@ def merge_resources(base, candidate, on_conflict="reject") -> dict:
         "added": sorted(added),
         "replaced": sorted(replaced),
         "skipped": sorted(skipped),
+        "unchanged": sorted(unchanged),
         "possible_duplicates": introduced,
         "resources": merged,
     }
@@ -114,8 +124,8 @@ def main():
     parser.add_argument("candidate", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--on-conflict", choices=POLICIES, default="reject",
-                        help="reject (default) fails on duplicate IDs; replace applies the "
-                             "candidate record and lists it; keep retains the base record")
+                        help="reject (default) fails on duplicate IDs; replace applies changed "
+                             "candidate records and lists them; keep retains the base record")
     args = parser.parse_args()
     print(json.dumps(merge_files(args.base, args.candidate, args.output, args.on_conflict),
                      ensure_ascii=False, indent=2))
