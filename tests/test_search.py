@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
+import pytest
 
 from app.data import load_resources
 from app.models import ResourceCategory
-from app.search import distance_miles, find_resources
+from app.search import distance_miles, find_resources, is_open
 
 
 def test_distance_is_zero_for_same_point():
@@ -56,3 +58,26 @@ def test_stale_source_never_exposes_reported_availability():
     result = find_resources(load_resources(), 44.9778, -93.2650, at=observed)[0]
     assert result.data_freshness == "stale"
     assert result.availability.value == "unknown"
+
+
+def test_is_open_rejects_naive_timestamps():
+    resource = load_resources()[0]
+    with pytest.raises(ValueError, match="timezone"):
+        is_open(resource, datetime(2026, 9, 21, 12))
+
+
+def test_find_resources_rejects_naive_at_even_with_no_resources():
+    naive = datetime(2026, 9, 21, 12)
+    with pytest.raises(ValueError, match="timezone"):
+        find_resources([], 44.95, -93.09, at=naive)
+    with pytest.raises(ValueError, match="timezone"):
+        find_resources(load_resources(), 44.95, -93.09, at=naive)
+
+
+def test_aware_timestamps_in_other_zones_still_convert():
+    # 18:00 UTC on 2026-09-21 is 13:00 in Chicago (CDT): the same instant must
+    # give the same open/closed answer whichever zone the caller used.
+    resource = load_resources()[0]
+    as_utc = datetime(2026, 9, 21, 18, tzinfo=timezone.utc)
+    as_chicago = datetime(2026, 9, 21, 13, tzinfo=ZoneInfo("America/Chicago"))
+    assert is_open(resource, as_utc) == is_open(resource, as_chicago)
