@@ -27,8 +27,18 @@ def distance_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * radius_miles * asin(sqrt(min(1.0, max(0.0, a))))
 
 
+def _require_aware(at: datetime) -> datetime:
+    # A naive timestamp has no single meaning: on a UTC host it silently shifts
+    # Chicago hours by 5-6, flipping open/closed answers. Every other timestamp
+    # entry point (freshness, reverify, history, audit) already fails closed.
+    if at.utcoffset() is None:
+        raise ValueError("search timestamps must include a timezone")
+    return at
+
+
 def is_open(resource: Resource, at: datetime | None = None) -> bool:
-    local = (at or datetime.now(TWIN_CITIES_TZ)).astimezone(TWIN_CITIES_TZ)
+    local = (_require_aware(at) if at is not None
+             else datetime.now(TWIN_CITIES_TZ)).astimezone(TWIN_CITIES_TZ)
     current = local.strftime("%H:%M")
     for start, end in resource.hours.get(local.weekday(), []):
         if start <= current < end:
@@ -53,7 +63,10 @@ def find_resources(
             or not isinstance(radius_miles, (int, float))
             or not isfinite(radius_miles) or radius_miles < 0):
         raise ValueError("radius must be finite and nonnegative")
-    observed_at = at or datetime.now(TWIN_CITIES_TZ)
+    # Validate before the loop so a naive `at` raises even with no resources,
+    # not only when the per-resource freshness check happens to run.
+    observed_at = (_require_aware(at) if at is not None
+                   else datetime.now(TWIN_CITIES_TZ))
     matches = []
     for resource in resources:
         # A schedule alone cannot prove a site is currently open. Never present old
