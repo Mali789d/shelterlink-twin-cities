@@ -39,7 +39,7 @@ test('search ranks the nearest verified records first', () => {
   assert.ok(results.length >= 3);
   const ids = results.map(item => item.resource.id);
   assert.equal(ids[0], 'people-serving-people');
-  const distances = results.map(item => item.distance_miles);
+  const distances = results.map(item => item.distanceMiles);
   assert.deepEqual(distances, [...distances].sort((a, b) => a - b));
 });
 
