@@ -231,3 +231,64 @@ def test_checked_merge_does_not_mutate_inputs():
     before = [item.model_dump() for item in base + candidate]
     merge_resources(base, candidate)
     assert [item.model_dump() for item in base + candidate] == before
+
+
+def test_identical_candidate_under_replace_is_unchanged_not_replaced(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource())
+    candidate = write_snapshot(tmp_path / "candidate.json", resource())
+    output = tmp_path / "merged.json"
+    report = merge_files(base, candidate, output, on_conflict="replace")
+    assert report["replaced"] == [] and report["unchanged"] == ["hc-101"]
+    assert report["added"] == [] and report["skipped"] == []
+    assert report["resource_count"] == 1
+    # Nothing was applied: the merged content is exactly the base record.
+    assert load_resources(output) == validated(resource())
+
+
+def test_replace_separates_changed_from_unchanged_records(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource(), resource("hc-102", "Second Site"))
+    candidate = write_snapshot(tmp_path / "candidate.json", resource(),
+                               resource("hc-102", "Renamed Site"))
+    output = tmp_path / "merged.json"
+    report = merge_files(base, candidate, output, on_conflict="replace")
+    assert report["replaced"] == ["hc-102"] and report["unchanged"] == ["hc-101"]
+    names = {item.id: item.name for item in load_resources(output)}
+    assert names == {"hc-101": "Hope Center", "hc-102": "Renamed Site"}
+
+
+def test_unchanged_replacement_raises_no_phantom_duplicate_flag(tmp_path):
+    # A pre-existing look-alike pair (same name, different IDs) is deliberately
+    # left out of the report unless the merge actually touches one of them.
+    base = write_snapshot(tmp_path / "base.json", resource(),
+                          resource("hc-102", "Hope Center"))
+    candidate = write_snapshot(tmp_path / "candidate.json", resource())
+    output = tmp_path / "merged.json"
+    report = merge_files(base, candidate, output, on_conflict="replace")
+    assert report["unchanged"] == ["hc-101"] and report["possible_duplicates"] == []
+
+
+def test_changed_replacement_still_flags_look_alikes_it_touches(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource(),
+                          resource("hc-102", "Hope Center"))
+    candidate = write_snapshot(tmp_path / "candidate.json",
+                               resource(name="Hope Center", phone="6125550100"))
+    output = tmp_path / "merged.json"
+    report = merge_files(base, candidate, output, on_conflict="replace")
+    assert report["replaced"] == ["hc-101"]
+    assert report["possible_duplicates"] == [
+        {"ids": ["hc-101", "hc-102"], "rules": ["same_name", "same_location"]}]
+
+
+def test_keep_policy_reports_identical_candidates_as_skipped(tmp_path):
+    base = write_snapshot(tmp_path / "base.json", resource())
+    candidate = write_snapshot(tmp_path / "candidate.json", resource())
+    output = tmp_path / "merged.json"
+    report = merge_files(base, candidate, output, on_conflict="keep")
+    assert report["skipped"] == ["hc-101"] and report["unchanged"] == []
+    assert load_resources(output) == validated(resource())
+
+
+def test_merge_resources_report_carries_the_unchanged_key():
+    report = merge_resources(validated(resource()), validated(resource("hc-102", "Site")),
+                             on_conflict="reject")
+    assert report["unchanged"] == []
