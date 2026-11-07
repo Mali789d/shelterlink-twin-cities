@@ -7,7 +7,7 @@ import pytest
 from app.audit_directory import audit_resources
 from app.data import load_resources
 from app.models import Resource
-from app.reverify import due_resources, reverify, reverify_file
+from app.reverify import due_resources, main, reverify, reverify_file
 
 AT = datetime(2026, 11, 3, 21, 0, tzinfo=timezone.utc)
 LATER = AT + timedelta(hours=2)
@@ -33,6 +33,30 @@ def test_due_lists_stale_and_expiring_only():
     due = due_resources([fresh], AT + timedelta(hours=23), within=timedelta(hours=2))
     assert [item["id"] for item in due] == ["fresh"]
     assert due[0]["stale"] is False
+
+
+def test_due_marks_samples_for_replacement():
+    # reverify refuses sample records: the queue must flag which due records
+    # need replacement so --due output can never become a failing --checked run.
+    old_sample = _record("old-sample", AT - timedelta(days=3), is_sample=True)
+    old_real = _record("old-real", AT - timedelta(days=3))
+    due = {item["id"]: item for item in due_resources([old_sample, old_real], AT)}
+    assert due["old-sample"]["sample"] is True
+    assert due["old-real"]["sample"] is False
+
+
+def test_due_cli_names_the_action_per_record(tmp_path, capsys, monkeypatch):
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text(json.dumps([
+        json.loads(_record("old-real", AT - timedelta(days=3)).model_dump_json()),
+        json.loads(_record("old-sample", AT - timedelta(days=3),
+                         is_sample=True).model_dump_json()),
+    ]), encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["reverify", str(snapshot), "--due"])
+    main()
+    lines = capsys.readouterr().out.strip().splitlines()
+    actions = {line.split("\t")[0]: line.split("\t")[3] for line in lines}
+    assert actions == {"old-real": "reverify", "old-sample": "replace"}
 
 
 def test_due_requires_aware_time():
