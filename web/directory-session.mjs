@@ -1,7 +1,7 @@
 // UI-independent fail-closed state for a future directory page. No network/storage.
 import {readDirectory, nearbyResources} from './directory.mjs';
 
-const NOTICE = 'Directory information only. Call first; current local help: 211; emergency: 911.';
+export const NOTICE = 'Directory information only. Call first; current local help: 211; emergency: 911.';
 
 export function createDirectorySession(clock = Date.now) {
   if (typeof clock !== 'function') throw new Error('A clock function is required');

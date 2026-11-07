@@ -1,5 +1,11 @@
 // View-time checks for static exports. No network, tracking, DOM or paid backend.
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Same window as app/freshness.py DEFAULT_MAX_AGE: the page must not show
+// listings the API considers stale, or hide ones it still serves.
+// tests/test_web_parity.py pins them equal.
+export const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// One wording across the exporter and every page module; pinned by
+// tests/test_web_parity.py.
+export const DIRECTORY_NOTICE = 'Directory information only. Call first; current local help: 211; emergency: 911.';
 const VALIDATED_DIRECTORIES = new WeakMap();
 const CATEGORIES = new Set(['shelter', 'meal', 'warming', 'shower']);
 
@@ -91,7 +97,7 @@ export function readDirectory(snapshot, now = Date.now()) {
   });
   const directory = Object.freeze({
     resources: Object.freeze(resources),
-    notice: 'Directory information only. Call first; current local help: 211; emergency: 911.',
+    notice: DIRECTORY_NOTICE,
   });
   VALIDATED_DIRECTORIES.set(directory, {generatedAt: snapshot.generated_at, validatedAt: now});
   return directory;
