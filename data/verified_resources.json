@@ -12,7 +12,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/",
-    "verified_at": "2026-11-03T14:56:00-06:00",
+    "verified_at": "2026-11-07T15:57:04.500335Z",
     "is_sample": false
   },
   {
@@ -28,7 +28,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/",
-    "verified_at": "2026-11-03T14:56:00-06:00",
+    "verified_at": "2026-11-07T15:57:04.500335Z",
     "is_sample": false
   },
   {
@@ -44,7 +44,7 @@
     "availability": "unknown",
     "source_name": "People Serving People",
     "source_url": "https://www.peopleservingpeople.org/our-locations/",
-    "verified_at": "2026-11-03T14:56:00-06:00",
+    "verified_at": "2026-11-07T15:57:04.500335Z",
     "is_sample": false
   },
   {
@@ -60,7 +60,23 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/",
-    "verified_at": "2026-11-03T14:56:00-06:00",
+    "verified_at": "2026-11-07T15:57:04.500335Z",
+    "is_sample": false
+  },
+  {
+    "id": "union-gospel-bethel-hotel",
+    "name": "Bethel Hotel Men's Shelter",
+    "category": "shelter",
+    "address": "435 University Avenue East, Saint Paul, MN 55130",
+    "latitude": 44.9579181,
+    "longitude": -93.0859475,
+    "phone": "(651) 292-1721",
+    "website": "https://www.ugmtc.org/",
+    "hours": {},
+    "availability": "unknown",
+    "source_name": "Union Gospel Mission Twin Cities",
+    "source_url": "https://www.ugmtc.org/programs/food-shelter/",
+    "verified_at": "2026-11-07T09:56:21-06:00",
     "is_sample": false
   }
 ]
