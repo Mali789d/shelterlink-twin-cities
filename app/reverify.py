@@ -62,9 +62,12 @@ def due_resources(resources: list[Resource], at: datetime,
         expiring = within is not None and not stale and (
             resource_freshness(item, horizon) is not Freshness.CURRENT)
         if stale or expiring:
+            # reverify refuses sample records, so the queue must say which due
+            # records need replacement instead - an operator feeding this list
+            # into --checked otherwise hits a refusal the list already implied.
             due.append({"id": item.id, "source_url": str(item.source_url),
                         "verified_at": item.verified_at.isoformat(),
-                        "stale": stale})
+                        "stale": stale, "sample": item.is_sample})
     return due
 
 
@@ -142,7 +145,9 @@ def main():
     if args.due:
         for item in due_resources(resources, now, within=(
                 timedelta(hours=args.within_hours) if args.within_hours is not None else None)):
-            print(f"{item['id']}\t{item['verified_at']}\t{item['source_url']}")
+            # A stable action column: samples cannot be re-verified, only replaced.
+            action = "replace" if item["sample"] else "reverify"
+            print(f"{item['id']}\t{item['verified_at']}\t{item['source_url']}\t{action}")
         return
     count = reverify_file(args.snapshot, set(args.checked), now)
     print(f"re-verified {count} record(s) at {now.isoformat()}")
