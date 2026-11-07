@@ -44,6 +44,21 @@ def test_seed_is_real_and_complete(seed):
         assert within_service_area(item.latitude, item.longitude)
 
 
+def test_bethel_hotel_record_matches_the_verified_source(seed):
+    # Added 2026-11-07 against ugmtc.org: 435 University Ave E, Saint Paul;
+    # men's programs line (651) 292-1721; intake 24/7. Hours stay empty per the
+    # seed policy above: no open-now claims from unverified schedules.
+    by_id = {item.id: item for item in seed}
+    record = by_id["union-gospel-bethel-hotel"]
+    assert record.name == "Bethel Hotel Men's Shelter"
+    assert record.category.value == "shelter"
+    assert record.address == "435 University Avenue East, Saint Paul, MN 55130"
+    assert record.phone == "(651) 292-1721"
+    assert not record.hours and record.availability.value == "unknown"
+    assert str(record.source_url) == "https://www.ugmtc.org/programs/food-shelter/"
+    assert str(record.website) == "https://www.ugmtc.org/"
+
+
 def test_seed_covers_both_cities_and_multiple_categories(seed):
     cities = {item.address.rsplit(", ", 2)[1] for item in seed}
     assert cities == {"Minneapolis", "Saint Paul"}
