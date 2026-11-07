@@ -13,6 +13,10 @@ from .data import MAX_SNAPSHOT_BYTES, load_resources
 from .freshness import Freshness, resource_freshness
 from .models import Resource
 
+# The 211/911 notice is one wording across the exporter and every page module;
+# tests/test_web_parity.py pins all copies equal.
+DIRECTORY_NOTICE = "Directory information only. Call first; current local help: 211; emergency: 911."
+
 
 def directory_snapshot(resources, at: datetime) -> dict:
     if at.tzinfo is None:
@@ -41,7 +45,7 @@ def directory_snapshot(resources, at: datetime) -> dict:
         })
     return {
         "schema_version": 1, "generated_at": at.isoformat(),
-        "notice": "Directory information only. Call first; current local help: 211; emergency: 911.",
+        "notice": DIRECTORY_NOTICE,
         "resources": records,
     }
 
