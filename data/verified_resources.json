@@ -12,7 +12,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/",
-    "verified_at": "2026-11-07T15:57:04.500335Z",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
     "is_sample": false
   },
   {
@@ -28,7 +28,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/",
-    "verified_at": "2026-11-07T15:57:04.500335Z",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
     "is_sample": false
   },
   {
@@ -44,7 +44,7 @@
     "availability": "unknown",
     "source_name": "People Serving People",
     "source_url": "https://www.peopleservingpeople.org/our-locations/",
-    "verified_at": "2026-11-07T15:57:04.500335Z",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
     "is_sample": false
   },
   {
@@ -60,7 +60,23 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/",
-    "verified_at": "2026-11-07T15:57:04.500335Z",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "is_sample": false
+  },
+  {
+    "id": "simpson-community-shelter",
+    "name": "Simpson Community Shelter & Apartments",
+    "category": "shelter",
+    "address": "2740 1st Avenue South, Minneapolis, MN 55408",
+    "latitude": 44.95223,
+    "longitude": -93.2767814,
+    "phone": "(612) 874-8683",
+    "website": "https://simpsonhousing.org/",
+    "hours": {},
+    "availability": "unknown",
+    "source_name": "Simpson Housing Services",
+    "source_url": "https://simpsonhousing.org/simpson-community-shelter-apartments/",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
     "is_sample": false
   },
   {
@@ -76,7 +92,7 @@
     "availability": "unknown",
     "source_name": "Union Gospel Mission Twin Cities",
     "source_url": "https://www.ugmtc.org/programs/food-shelter/",
-    "verified_at": "2026-11-07T09:56:21-06:00",
+    "verified_at": "2026-11-08T01:58:11.400771Z",
     "is_sample": false
   }
 ]
