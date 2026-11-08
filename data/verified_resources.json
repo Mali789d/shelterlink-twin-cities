@@ -64,6 +64,22 @@
     "is_sample": false
   },
   {
+    "id": "sharing-and-caring-hands",
+    "name": "Sharing & Caring Hands",
+    "category": "meal",
+    "address": "525 N 7th Street, Minneapolis, MN 55405",
+    "latitude": 44.9832967,
+    "longitude": -93.2826432,
+    "phone": "(612) 338-4640",
+    "website": "https://sharingandcaringhands.org/",
+    "hours": {},
+    "availability": "unknown",
+    "source_name": "Sharing & Caring Hands",
+    "source_url": "https://sharingandcaringhands.org/",
+    "verified_at": "2026-11-08T15:56:12.259007+00:00",
+    "is_sample": false
+  },
+  {
     "id": "simpson-community-shelter",
     "name": "Simpson Community Shelter & Apartments",
     "category": "shelter",
