@@ -6,7 +6,7 @@ import {createSnapshotReader} from './snapshot-reader.mjs';
 import {createDirectorySession} from './directory-session.mjs';
 import {createDirectoryLoader} from './directory-loader.mjs';
 import {parseLocation} from './location-input.mjs';
-import {PAGE_NOTICE, statusMessage, resultView} from './directory-view.mjs';
+import {PAGE_NOTICE, statusMessage, resultView, listingSummary} from './directory-view.mjs';
 
 const elements = {
   form: document.getElementById('search-form'),
@@ -14,6 +14,7 @@ const elements = {
   category: document.getElementById('category'),
   radius: document.getElementById('radius'),
   status: document.getElementById('status'),
+  summary: document.getElementById('directory-summary'),
   results: document.getElementById('results'),
   notice: document.getElementById('notice'),
   refresh: document.getElementById('refresh'),
@@ -79,6 +80,15 @@ function render(state) {
     message = statusMessage('unavailable');
   }
   setText(elements.status, `${message.heading}. ${message.detail}`);
+  // Provenance line: hidden whenever no directory is loaded or the summary is
+  // malformed - it is informational, so failing closed means showing nothing.
+  let summaryText = '';
+  try {
+    summaryText = listingSummary(state) || '';
+  } catch {
+    summaryText = '';
+  }
+  setText(elements.summary, summaryText);
   elements.results.replaceChildren();
   if (state.status === 'results') {
     try {

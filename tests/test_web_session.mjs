@@ -119,3 +119,16 @@ test('valid preferences queued during loading are still applied on replacement',
   noResults(session.search({...origin, category: 'shower'}), 'loading');
   noResults(session.replaceSnapshot(snapshot()), 'no_matches');
 });
+
+test('a loaded directory carries a frozen provenance summary', () => {
+  const {session} = setup();
+  assert.equal(session.getState().summary, null);
+  const state = session.replaceSnapshot(snapshot());
+  assert.equal(state.status, 'ready');
+  assert.deepEqual(state.summary, {listings: 1, oldestVerified: '2026-10-08'});
+  assert.ok(Object.isFrozen(state.summary));
+  // The summary follows the directory through searches and clears with it.
+  assert.deepEqual(session.search(origin).summary, {listings: 1, oldestVerified: '2026-10-08'});
+  assert.equal(session.beginRefresh().summary, null);
+  assert.equal(session.failRefresh().summary, null);
+});

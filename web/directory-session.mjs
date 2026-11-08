@@ -9,7 +9,16 @@ export function createDirectorySession(clock = Date.now) {
   let options = null;
   let status = 'unavailable';
   const empty = Object.freeze([]);
-  const state = (value, results = empty) => Object.freeze({status: value, results, notice: NOTICE});
+  // Pure provenance data for the view layer: how many validated listings the
+  // directory holds and the oldest verification date, which sets the freshness
+  // deadline. Wording lives in web/directory-view.mjs.
+  const summaryOf = value => Object.freeze({
+    listings: value.resources.length,
+    oldestVerified: value.resources.map(item => item.verified_at).sort()[0].slice(0, 10),
+  });
+  const state = (value, results = empty) => Object.freeze({
+    status: value, results, notice: NOTICE, summary: directory ? summaryOf(directory) : null,
+  });
 
   function clear(value) {
     directory = null;
