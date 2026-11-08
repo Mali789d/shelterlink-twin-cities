@@ -54,6 +54,23 @@ const STATUS_MESSAGES = Object.freeze({
   }),
 });
 
+// One line of provenance for a loaded directory: how many verified listings it
+// holds and the oldest verification date, which is what sets the freshness
+// deadline. Null while no directory is loaded; a malformed summary throws so
+// the glue layer shows nothing rather than a guess.
+export function listingSummary(state) {
+  if (!state || typeof state !== 'object') throw new Error('Invalid state');
+  if (state.summary === null || state.summary === undefined) return null;
+  const {listings, oldestVerified} = state.summary;
+  if (!Number.isInteger(listings) || listings < 1
+      || typeof oldestVerified !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}$/.test(oldestVerified)) {
+    throw new Error('Invalid directory summary');
+  }
+  const noun = listings === 1 ? 'listing' : 'listings';
+  return `${listings} verified ${noun}; oldest verification ${oldestVerified}.`;
+}
+
 export function statusMessage(status) {
   // Own-property read: a '__proto__' status must throw, not resolve to an
   // inherited Object member as if it were a known state (same guard as
