@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PAGE_NOTICE, PROTOTYPE_BANNER, phoneHref, resultView, statusMessage}
-  from '../web/directory-view.mjs';
+import {PAGE_NOTICE, PROTOTYPE_BANNER, listingSummary, phoneHref, resultView,
+  statusMessage} from '../web/directory-view.mjs';
 
 function result(overrides = {}) {
   const resource = {
@@ -122,4 +122,26 @@ test('phoneHref rejects non-dialable text', () => {
   assert.throws(() => phoneHref(''), /Invalid phone/);
   assert.throws(() => phoneHref('javascript:alert(1)'), /Invalid phone/);
   assert.equal(phoneHref('+1 (612) 555-0100'), 'tel:+16125550100');
+});
+
+test('listingSummary formats count and oldest verification date', () => {
+  assert.equal(
+    listingSummary({summary: {listings: 7, oldestVerified: '2026-11-08'}}),
+    '7 verified listings; oldest verification 2026-11-08.');
+  assert.equal(
+    listingSummary({summary: {listings: 1, oldestVerified: '2026-10-08'}}),
+    '1 verified listing; oldest verification 2026-10-08.');
+});
+
+test('listingSummary is null without a loaded directory', () => {
+  assert.equal(listingSummary({summary: null}), null);
+  assert.equal(listingSummary({}), null);
+});
+
+test('listingSummary rejects malformed summaries instead of guessing', () => {
+  assert.throws(() => listingSummary(null));
+  assert.throws(() => listingSummary({summary: {listings: 0, oldestVerified: '2026-11-08'}}));
+  assert.throws(() => listingSummary({summary: {listings: 2.5, oldestVerified: '2026-11-08'}}));
+  assert.throws(() => listingSummary({summary: {listings: 3, oldestVerified: 'Nov 8'}}));
+  assert.throws(() => listingSummary({summary: {listings: 3, oldestVerified: '2026-13-99 x'}}));
 });
