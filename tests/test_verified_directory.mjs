@@ -43,11 +43,15 @@ test('search ranks the nearest verified records first', () => {
   assert.deepEqual(distances, [...distances].sort((a, b) => a - b));
 });
 
-test('category filter finds the verified meal site in Saint Paul', () => {
+test('category filter finds every verified meal site in range', () => {
   const directory = readDirectory(snapshot, now);
+  // Downtown Saint Paul: the Opportunity Center is blocks away, and the
+  // Minneapolis meal site (Sharing & Caring Hands) sits inside the default
+  // radius across the river. Both must appear, nearest first.
   const meals = nearbyResources(directory,
     {latitude: 44.949, longitude: -93.095, category: 'meal', now});
-  assert.deepEqual(meals.map(item => item.resource.id), ['saint-paul-opportunity-center']);
+  assert.deepEqual(meals.map(item => item.resource.id),
+    ['saint-paul-opportunity-center', 'sharing-and-caring-hands']);
 });
 
 test('the same seed fails closed once verification ages out', () => {
