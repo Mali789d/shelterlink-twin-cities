@@ -101,17 +101,20 @@ def reverify(resources: list[Resource], checked_ids: set[str], at: datetime) -> 
     return updated
 
 
-def reverify_file(path: Path, checked_ids: set[str], at: datetime) -> int:
-    """Rewrite a snapshot in place with re-verified dates; atomic, bounded writes."""
-    path = Path(path)
-    if path.is_symlink():
-        raise ValueError("refusing to rewrite a snapshot through a symlink")
-    resources = load_resources(path)
-    updated = reverify(resources, checked_ids, at)
-    text = json.dumps([json.loads(item.model_dump_json()) for item in updated],
+def serialize_resources(resources) -> str:
+    """Canonical snapshot text for validated resources, bounded like any input."""
+    text = json.dumps([json.loads(item.model_dump_json()) for item in resources],
                       ensure_ascii=False, indent=2) + "\n"
     if len(text.encode("utf-8")) > MAX_SNAPSHOT_BYTES:
         raise ValueError("snapshot exceeds byte limit")
+    return text
+
+
+def write_snapshot_atomically(path: Path, text: str) -> None:
+    """Replace a snapshot whole-file via a sibling temp, never through a symlink."""
+    path = Path(path)
+    if path.is_symlink():
+        raise ValueError("refusing to rewrite a snapshot through a symlink")
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
@@ -122,6 +125,14 @@ def reverify_file(path: Path, checked_ids: set[str], at: datetime) -> int:
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def reverify_file(path: Path, checked_ids: set[str], at: datetime) -> int:
+    """Rewrite a snapshot in place with re-verified dates; atomic, bounded writes."""
+    path = Path(path)
+    resources = load_resources(path)
+    updated = reverify(resources, checked_ids, at)
+    write_snapshot_atomically(path, serialize_resources(updated))
     return len(checked_ids)
 
 
