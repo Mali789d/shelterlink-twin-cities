@@ -12,7 +12,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -28,7 +28,23 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
+    "is_sample": false
+  },
+  {
+    "id": "mary-frey-opportunity-center",
+    "name": "Mary F. Frey Opportunity Center",
+    "category": "shower",
+    "address": "740 East 17th Street, Minneapolis, MN 55404",
+    "latitude": 44.9664543,
+    "longitude": -93.2628453,
+    "phone": "(612) 204-8300",
+    "website": "https://cctwincities.org/",
+    "hours": {},
+    "availability": "unknown",
+    "source_name": "Catholic Charities Twin Cities",
+    "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/mary-f-frey-minneapolis-opportunity-center/",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -44,7 +60,7 @@
     "availability": "unknown",
     "source_name": "People Serving People",
     "source_url": "https://www.peopleservingpeople.org/our-locations/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -60,7 +76,7 @@
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -76,7 +92,7 @@
     "availability": "unknown",
     "source_name": "Sharing & Caring Hands",
     "source_url": "https://sharingandcaringhands.org/",
-    "verified_at": "2026-11-08T15:56:12.259007+00:00",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -92,7 +108,7 @@
     "availability": "unknown",
     "source_name": "Simpson Housing Services",
     "source_url": "https://simpsonhousing.org/simpson-community-shelter-apartments/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   },
   {
@@ -108,7 +124,7 @@
     "availability": "unknown",
     "source_name": "Union Gospel Mission Twin Cities",
     "source_url": "https://www.ugmtc.org/programs/food-shelter/",
-    "verified_at": "2026-11-08T01:58:11.400771Z",
+    "verified_at": "2026-11-09T01:55:11.226379Z",
     "is_sample": false
   }
 ]
