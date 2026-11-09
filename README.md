@@ -257,6 +257,8 @@ Appends refuse unexplained notes and no-change snapshots; a local chain cannot p
 latest record alone, so verification also anchors it against the current snapshot. The
 history records operator review events only - not provider verification or publication.
 
+The verified seed carries its own history at `data/verified_resources.history.jsonl`: every change to `data/verified_resources.json` must be recorded with an append in the same commit, and the test suite fails when the seed drifts from its latest recorded review.
+
 `python -m app.merge base.json candidate.json merged.json` applies a reviewed candidate
 to a base snapshot. Duplicate IDs reject loudly by default so a provider re-export cannot
 silently duplicate or overwrite entries; `--on-conflict replace` applies candidate records
