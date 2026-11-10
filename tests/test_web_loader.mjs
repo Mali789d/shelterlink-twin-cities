@@ -1,15 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDirectorySession} from '../web/directory-session.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
 import {createDirectoryLoader} from '../web/directory-loader.mjs';
 const now = Date.parse('2026-10-08T18:00:00Z');
 function snapshot(id = 'test') {
   const time = new Date(now).toISOString();
-  return {schema_version: 1, generated_at: time, resources: [{
+  const value = {schema_version: 1, generated_at: time, resources: [{
     id, name: 'Fixture only', category: 'meal', address: 'Test address',
-    latitude: 0, longitude: 0, source_name: 'Test fixture',
+    latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
   }]};
+  value.resources_sha256 = resourcesDigest(value.resources);
+  return value;
 }
 function setup() {
   const requests = [];
