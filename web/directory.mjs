@@ -6,7 +6,7 @@ export const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // One wording across the exporter and every page module; pinned by
 // tests/test_web_parity.py.
 export const DIRECTORY_NOTICE = 'Directory information only. Call first; current local help: 211; emergency: 911.';
-import {resourcesDigest} from './export-integrity.mjs';
+import {exportDigest} from './export-integrity.mjs';
 
 const VALIDATED_DIRECTORIES = new WeakMap();
 const CATEGORIES = new Set(['shelter', 'meal', 'warming', 'shower']);
@@ -77,9 +77,9 @@ export function readDirectory(snapshot, now = Date.now()) {
   if (!current(snapshot.generated_at, now)) throw new Error('Directory needs a refresh');
   // A corrupted or inconsistently edited export never renders: the digest
   // must match the exact records the exporter reviewed, byte-for-byte.
-  if (typeof snapshot.resources_sha256 !== 'string'
-      || !/^[0-9a-f]{64}$/.test(snapshot.resources_sha256)
-      || snapshot.resources_sha256 !== resourcesDigest(snapshot.resources)) {
+  if (typeof snapshot.export_sha256 !== 'string'
+      || !/^[0-9a-f]{64}$/.test(snapshot.export_sha256)
+      || snapshot.export_sha256 !== exportDigest(snapshot)) {
     throw new Error('Directory failed its integrity check');
   }
   const ids = new Set();
