@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {readDirectory, nearbyResources} from '../web/directory.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
 
 const seed = JSON.parse(readFileSync(
   new URL('../data/verified_resources.json', import.meta.url), 'utf8'));
@@ -20,6 +21,7 @@ const snapshot = {
     phone, website, source_name, source_url, verified_at}) => ({id, name, category,
     address, latitude, longitude, phone, website, source_name, source_url, verified_at})),
 };
+snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
 const now = Date.parse(snapshot.generated_at) + 60 * 60 * 1000;
 
 test('verified seed passes the browser directory gate', () => {
