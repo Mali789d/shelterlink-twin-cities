@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, filterCategory} from '../web/directory.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 function resign(data) {
-  data.resources_sha256 = resourcesDigest(data.resources);
+  data.export_sha256 = exportDigest(data);
   return data;
 }
 
@@ -133,10 +133,10 @@ test('a missing phone stays missing', () => {
 
 test('a missing, malformed or stale digest fails the integrity check', () => {
   const data = snapshot();
-  delete data.resources_sha256;
+  delete data.export_sha256;
   assert.throws(() => readDirectory(data, now), /integrity/);
   const malformed = snapshot();
-  malformed.resources_sha256 = 'not-a-digest';
+  malformed.export_sha256 = 'not-a-digest';
   assert.throws(() => readDirectory(malformed, now), /integrity/);
   const tampered = snapshot();
   tampered.resources[0].name = 'Edited after export';

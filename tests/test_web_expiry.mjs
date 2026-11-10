@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, filterCategory, nearbyResources} from '../web/directory.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 
 const now = Date.parse('2026-10-07T12:00:00Z');
 const day = 86400000;
@@ -11,7 +11,7 @@ function snapshot(verified = now, generated = now) {
     latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: new Date(verified).toISOString(),
   }]};
-  value.resources_sha256 = resourcesDigest(value.resources);
+  value.export_sha256 = exportDigest(value);
   return value;
 }
 const origin = {latitude: 0, longitude: 0};

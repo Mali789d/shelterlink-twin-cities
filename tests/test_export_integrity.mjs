@@ -1,13 +1,13 @@
 // Export integrity: known-answer SHA-256 vectors, canonical-form rules, the
-// shared cross-language vector, and readDirectory's closed-on-mismatch gate.
+// shared cross-language vectors, and readDirectory's closed-on-mismatch gate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sha256Hex, canonicalJson, resourcesDigest} from '../web/export-integrity.mjs';
+import {sha256Hex, canonicalJson, resourcesDigest, exportDigest} from '../web/export-integrity.mjs';
 import {readDirectory} from '../web/directory.mjs';
 
 const now = Date.parse('2026-11-10T12:30:00Z');
 
-// Shared with tests/test_export_integrity.py: same records, same digest.
+// Shared with tests/test_export_integrity.py: same records, same digests.
 const VECTOR = [{address: '123 Cañon Avenue, Suite 5', category: 'shelter',
   id: 'vector-b', latitude: 45.0, longitude: -93.265,
   name: 'St. Mary’s Place – “Open Door”', phone: '211',
@@ -18,6 +18,8 @@ const VECTOR = [{address: '123 Cañon Avenue, Suite 5', category: 'shelter',
   source_url: 'https://example.com/a', verified_at: '2026-11-10T11:00:00Z',
   website: 'https://example.com'}];
 const VECTOR_DIGEST = 'd2b3369e2650c24f277099653f4e77f4e5d2123f035ff1b04fb1127016996fda';
+const ENVELOPE = {generated_at: '2026-11-10T12:00:00Z', resources: VECTOR, schema_version: 1};
+const ENVELOPE_DIGEST = '4bea782f609d293c003956d5c80e5b3fbdd00550108520f450afb61c2647728d';
 
 test('sha256 matches published known-answer vectors', () => {
   assert.equal(sha256Hex(''),
@@ -37,8 +39,12 @@ test('canonical form sorts keys, drops spaces, keeps UTF-8', () => {
   assert.throws(() => canonicalJson(Number.NaN), /Non-finite/);
 });
 
-test('shared vector matches the Python exporter', () => {
+test('shared record vector matches the Python exporter', () => {
   assert.equal(resourcesDigest(VECTOR), VECTOR_DIGEST);
+});
+
+test('shared envelope vector matches the Python exporter', () => {
+  assert.equal(exportDigest(ENVELOPE), ENVELOPE_DIGEST);
 });
 
 test('digest ignores injected claims but not reviewed fields', () => {
@@ -51,30 +57,57 @@ test('digest ignores injected claims but not reviewed fields', () => {
   assert.throws(() => resourcesDigest(missing), /reviewed field/);
 });
 
+test('envelope digest covers generated_at, schema_version and every record field', () => {
+  // A stale export rolled forward must fail integrity, not just freshness.
+  assert.notEqual(exportDigest({...ENVELOPE, generated_at: '2026-11-10T12:30:00Z'}),
+    ENVELOPE_DIGEST);
+  assert.notEqual(exportDigest({...ENVELOPE, schema_version: 2}), ENVELOPE_DIGEST);
+  const edited = JSON.parse(JSON.stringify(ENVELOPE));
+  edited.resources[0].name = 'Edited after export';
+  assert.notEqual(exportDigest(edited), ENVELOPE_DIGEST);
+  // Injected claims and the snapshot's notice change nothing the page may
+  // show, so they must not change the digest either.
+  const injected = JSON.parse(JSON.stringify(ENVELOPE));
+  injected.notice = 'Forged notice';
+  injected.resources[0] = {...injected.resources[0], availability: 'available', open_now: true};
+  assert.equal(exportDigest(injected), ENVELOPE_DIGEST);
+});
+
+test('envelope digest refuses a snapshot missing a reviewed envelope field', () => {
+  for (const key of ['generated_at', 'resources', 'schema_version']) {
+    const incomplete = {...ENVELOPE};
+    delete incomplete[key];
+    assert.throws(() => exportDigest(incomplete), /envelope field/);
+  }
+});
+
 function snapshot() {
   const resources = [{id: 'test', name: 'Test', category: 'meal',
     address: 'Test address', latitude: 44.9, longitude: -93.1, phone: '211',
     website: null, source_name: 'Test source', source_url: 'https://example.com/',
     verified_at: '2026-11-10T12:00:00Z'}];
-  return {schema_version: 1, generated_at: '2026-11-10T12:00:00Z',
-    resources, resources_sha256: resourcesDigest(resources)};
+  const value = {schema_version: 1, generated_at: '2026-11-10T12:00:00Z', resources};
+  value.export_sha256 = exportDigest(value);
+  return value;
 }
 
-test('a digest matching the reviewed records passes the gate', () => {
+test('a digest matching the reviewed envelope passes the gate', () => {
   assert.equal(readDirectory(snapshot(), now).resources.length, 1);
 });
 
-test('any record edit with a stale digest never renders', () => {
+test('any envelope edit with a stale digest never renders', () => {
   for (const mutate of [
     data => { data.resources[0].name = 'Edited'; },
     data => { data.resources[0].latitude = 44.8; },
     data => { data.resources.push({...data.resources[0], id: 'second'}); },
-    data => { delete data.resources_sha256; },
-    data => { data.resources_sha256 = data.resources_sha256.toUpperCase(); },
-    data => { data.resources_sha256 = '0'.repeat(64); },
+    data => { data.generated_at = '2026-11-10T11:59:00Z'; },
+    data => { data.schema_version = 2; },
+    data => { delete data.export_sha256; },
+    data => { data.export_sha256 = data.export_sha256.toUpperCase(); },
+    data => { data.export_sha256 = '0'.repeat(64); },
   ]) {
     const data = snapshot();
     mutate(data);
-    assert.throws(() => readDirectory(data, now), /integrity/);
+    assert.throws(() => readDirectory(data, now), /integrity|Invalid directory/);
   }
 });

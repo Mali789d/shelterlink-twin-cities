@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSnapshotReader} from '../web/snapshot-reader.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 import {createDirectoryLoader} from '../web/directory-loader.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
@@ -14,7 +14,7 @@ function response(id) {
     latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
   }]};
-  value.resources_sha256 = resourcesDigest(value.resources);
+  value.export_sha256 = exportDigest(value);
   return new Response(JSON.stringify(value), {headers: {'Content-Type': 'application/json'}});
 }
 function setup() {

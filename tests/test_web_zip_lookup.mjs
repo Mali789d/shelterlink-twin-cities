@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 function signed(snapshot) {
-  snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
+  snapshot.export_sha256 = exportDigest(snapshot);
   return snapshot;
 }
 import {parseCoordinates, parseLocation} from '../web/location-input.mjs';

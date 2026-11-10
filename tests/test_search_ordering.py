@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app.data import DATA_PATH, load_resources
-from app.export_directory import resources_digest
+from app.export_directory import export_digest
 from app.search import find_resources
 
 AT = datetime(2026, 10, 12, 12, tzinfo=timezone.utc)
@@ -70,7 +70,7 @@ def test_web_nearby_ranks_the_same_fixture_identically():
 
     snapshot = {"schema_version": 1, "generated_at": timestamp,
                 "resources": [entry("b-site"), entry("a-site")]}
-    snapshot["resources_sha256"] = resources_digest(snapshot["resources"])
+    snapshot["export_sha256"] = export_digest(snapshot)
     script = (
         "import('./web/directory.mjs').then(m => {"
         f"const now = {int(AT.timestamp() * 1000)};"

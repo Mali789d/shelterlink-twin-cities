@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSnapshotReader} from '../web/snapshot-reader.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 import {createDirectoryLoader} from '../web/directory-loader.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
@@ -16,7 +16,7 @@ function snapshot(time = at) {
     source_url: 'https://example.com/', verified_at: date,
     availability: 'available', open_now: true, hours: {0: [['00:00', '24:00']]},
   }]};
-  value.resources_sha256 = resourcesDigest(value.resources);
+  value.export_sha256 = exportDigest(value);
   return value;
 }
 function response(data) {

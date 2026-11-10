@@ -45,12 +45,13 @@ def directory_snapshot(resources, at: datetime) -> dict:
             "source_name": item.source_name, "source_url": str(item.source_url),
             "verified_at": item.verified_at.isoformat(),
         })
-    return {
+    snapshot = {
         "schema_version": 1, "generated_at": at.isoformat(),
         "notice": DIRECTORY_NOTICE,
         "resources": records,
-        "resources_sha256": resources_digest(records),
     }
+    snapshot["export_sha256"] = export_digest(snapshot)
+    return snapshot
 
 
 def _canonical_export_json(value) -> str:
@@ -88,19 +89,47 @@ EXPORT_RESOURCE_FIELDS = ("address", "category", "id", "latitude", "longitude",
                           "website")
 
 
-def resources_digest(records) -> str:
-    """SHA-256 over the canonical exported records; verified by the web reader.
-
-    A consistency check, not a signature: anyone who can replace the export
-    file can recompute it. What it catches is corruption and partial edits -
-    a changed record with a stale digest never renders.
-    """
+def _project_records(records):
     projected = []
     for item in records:
         if not isinstance(item, dict) or any(key not in item for key in EXPORT_RESOURCE_FIELDS):
             raise ValueError("export record misses a reviewed field")
         projected.append({key: item[key] for key in EXPORT_RESOURCE_FIELDS})
-    return hashlib.sha256(_canonical_export_json(projected).encode("utf-8")).hexdigest()
+    return projected
+
+
+def resources_digest(records) -> str:
+    """SHA-256 over the canonical exported records; the record-level half of
+    export_digest, kept pinned so a drift in projection fails both halves."""
+    return hashlib.sha256(_canonical_export_json(_project_records(records)).encode("utf-8")).hexdigest()
+
+
+# The envelope fields the page consults when deciding whether and what to
+# render. generated_at gates the freshness window and schema_version gates
+# interpretation, so a stale export rolled forward, or a record moved between
+# versions, must fail the same integrity check as an edited record. The
+# notice stays out: the page renders its own pinned wording, never the
+# snapshot's.
+EXPORT_ENVELOPE_FIELDS = ("generated_at", "resources", "schema_version")
+
+
+def export_digest(snapshot) -> str:
+    """SHA-256 over the canonical form of the reviewed export envelope;
+    verified by the web reader before any field is trusted.
+
+    A consistency check, not a signature: anyone who can replace the export
+    file can recompute it. What it catches is corruption and partial edits -
+    a changed record or a rolled-forward generated_at with a stale digest
+    never renders.
+    """
+    if not isinstance(snapshot, dict) or any(key not in snapshot for key in EXPORT_ENVELOPE_FIELDS):
+        raise ValueError("export misses a reviewed envelope field")
+    envelope = {
+        "generated_at": snapshot["generated_at"],
+        "resources": _project_records(snapshot["resources"]),
+        "schema_version": snapshot["schema_version"],
+    }
+    return hashlib.sha256(_canonical_export_json(envelope).encode("utf-8")).hexdigest()
 
 
 def export_file(source: Path, output: Path) -> None:
