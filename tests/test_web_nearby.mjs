@@ -1,17 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, nearbyResources} from '../web/directory.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
 
 const now = Date.now();
 const time = new Date(now).toISOString();
 function directory(points = [['origin', 0, 0, 'meal'], ['east', 0, 1, 'shelter'],
   ['far', 0, 2, 'meal']]) {
-  return readDirectory({schema_version: 1, generated_at: time,
+  const snapshot = {schema_version: 1, generated_at: time,
     resources: points.map(([id, latitude, longitude, category]) => ({
       id, latitude, longitude, category, name: id, address: 'Test fixture only',
+      phone: null, website: null,
       source_name: 'Test fixture', source_url: 'https://example.com/',
       verified_at: time,
-    }))}, now);
+    }))};
+  snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
+  return readDirectory(snapshot, now);
 }
 const origin = {latitude: 0, longitude: 0};
 

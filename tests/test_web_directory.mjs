@@ -1,20 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, filterCategory} from '../web/directory.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
+function resign(data) {
+  data.resources_sha256 = resourcesDigest(data.resources);
+  return data;
+}
 
 const now = Date.parse('2026-10-06T12:00:00Z');
 function snapshot() {
-  return {schema_version: 1, generated_at: '2026-10-06T12:00:00Z', resources: [{
+  const data = {schema_version: 1, generated_at: '2026-10-06T12:00:00Z', resources: [{
     id: 'test', name: 'Test', category: 'meal', address: 'Test address',
     latitude: 44.9, longitude: -93.1, phone: '211', website: null,
     source_name: 'Test source', source_url: 'https://example.com/',
     verified_at: '2026-10-06T12:00:00Z',
   }]};
+  return resign(data);
 }
 
 test('directory fields and safety notice survive, live claims do not', () => {
   const data = snapshot();
   Object.assign(data.resources[0], {availability: 'available', hours: {}, open_now: true});
+  resign(data);
   const result = readDirectory(data, now);
   assert.match(result.notice, /211.*911/);
   for (const field of ['availability', 'hours', 'open_now']) assert.equal(field in result.resources[0], false);
@@ -26,6 +33,7 @@ for (const field of ['generated_at', 'verified_at']) {
     test(`reject ${field} ${value}`, () => {
       const data = snapshot();
       if (field === 'generated_at') data[field] = value; else data.resources[0][field] = value;
+      resign(data);
       assert.throws(() => readDirectory(data, now));
     });
   }
@@ -66,6 +74,7 @@ for (const field of ['id', 'name', 'address', 'phone', 'source_name']) {
     test(`reject control characters in ${field}`, () => {
       const data = snapshot();
       data.resources[0][field] = bad;
+      resign(data);
       assert.throws(() => readDirectory(data, now));
     });
   }
@@ -74,8 +83,11 @@ for (const field of ['id', 'name', 'address', 'phone', 'source_name']) {
 test('legitimate Unicode punctuation in display text still passes', () => {
   const data = snapshot();
   data.resources[0].name = 'St. Mary’s Place – “Open Door” Émergence';
+  resign(data);
   data.resources[0].address = '123 Cañon Avenue, Suite 5';
+  resign(data);
   data.resources[0].source_name = 'Provider – reviewed listing';
+  resign(data);
   const result = readDirectory(data, now);
   assert.equal(result.resources[0].name, 'St. Mary’s Place – “Open Door” Émergence');
 });
@@ -83,6 +95,7 @@ test('legitimate Unicode punctuation in display text still passes', () => {
 test('injected lines cannot imitate safety guidance inside a listing', () => {
   const data = snapshot();
   data.resources[0].name = 'Shelter\n\nEmergency: call 555-0100 instead';
+  resign(data);
   assert.throws(() => readDirectory(data, now));
 });
 
@@ -94,6 +107,7 @@ for (const good of ['211', '911', '+1 (612) 555-0100', '612-555-0100', '(612) 55
   test(`accept dialable phone ${good}`, () => {
     const data = snapshot();
     data.resources[0].phone = good;
+    resign(data);
     assert.equal(readDirectory(data, now).resources[0].phone, good);
   });
 }
@@ -105,6 +119,7 @@ for (const bad of ['call the front desk', 'abc', '612-CALL-NOW', '911 or 211',
   test(`reject non-dialable phone ${JSON.stringify(bad)}`, () => {
     const data = snapshot();
     data.resources[0].phone = bad;
+    resign(data);
     assert.throws(() => readDirectory(data, now));
   });
 }
@@ -112,5 +127,29 @@ for (const bad of ['call the front desk', 'abc', '612-CALL-NOW', '911 or 211',
 test('a missing phone stays missing', () => {
   const data = snapshot();
   data.resources[0].phone = null;
+  resign(data);
   assert.equal(readDirectory(data, now).resources[0].phone, null);
+});
+
+test('a missing, malformed or stale digest fails the integrity check', () => {
+  const data = snapshot();
+  delete data.resources_sha256;
+  assert.throws(() => readDirectory(data, now), /integrity/);
+  const malformed = snapshot();
+  malformed.resources_sha256 = 'not-a-digest';
+  assert.throws(() => readDirectory(malformed, now), /integrity/);
+  const tampered = snapshot();
+  tampered.resources[0].name = 'Edited after export';
+  assert.throws(() => readDirectory(tampered, now), /integrity/);
+  tampered.resources[0].name = 'Test';
+  assert.equal(readDirectory(tampered, now).resources.length, 1);
+});
+
+test('injected claim fields are outside the digest and still never render', () => {
+  const data = snapshot();
+  Object.assign(data.resources[0], {availability: 'available', hours: {}, open_now: true});
+  const result = readDirectory(data, now);
+  for (const field of ['availability', 'hours', 'open_now']) {
+    assert.equal(field in result.resources[0], false);
+  }
 });

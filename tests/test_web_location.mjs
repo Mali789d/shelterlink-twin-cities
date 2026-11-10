@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCoordinates} from '../web/location-input.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
+function signed(snapshot) {
+  snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
+  return snapshot;
+}
 import {createDirectorySession} from '../web/directory-session.mjs';
 
 for (const [input, latitude, longitude] of [
@@ -27,11 +32,11 @@ test('manual input feeds local search with no network or location permission', (
   const now = Date.parse('2026-10-10T12:00:00Z');
   const time = new Date(now).toISOString();
   const session = createDirectorySession(() => now);
-  session.replaceSnapshot({schema_version: 1, generated_at: time, resources: [{
+  session.replaceSnapshot(signed({schema_version: 1, generated_at: time, resources: [{
     id: 'fixture', name: 'Synthetic fixture', category: 'meal', address: 'Test address',
-    latitude: 44.9, longitude: -93.1, source_name: 'Test fixture',
+    latitude: 44.9, longitude: -93.1, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
-  }]});
+  }]}));
   const state = session.search(parseCoordinates('44.9, -93.1'));
   assert.equal(state.status, 'results');
   assert.equal(state.results[0].distanceMiles, 0);

@@ -2,17 +2,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSnapshotReader} from '../web/snapshot-reader.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
 import {createDirectoryLoader} from '../web/directory-loader.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
 const now = Date.parse('2026-10-10T12:00:00Z');
 function response(id) {
   const time = new Date(now).toISOString();
-  return new Response(JSON.stringify({schema_version: 1, generated_at: time, resources: [{
+  const value = {schema_version: 1, generated_at: time, resources: [{
     id, name: 'Synthetic fixture', category: 'meal', address: 'Test address',
-    latitude: 0, longitude: 0, source_name: 'Test fixture',
+    latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
-  }]}), {headers: {'Content-Type': 'application/json'}});
+  }]};
+  value.resources_sha256 = resourcesDigest(value.resources);
+  return new Response(JSON.stringify(value), {headers: {'Content-Type': 'application/json'}});
 }
 function setup() {
   const requests = [];

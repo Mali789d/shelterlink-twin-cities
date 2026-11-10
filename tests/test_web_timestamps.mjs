@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory} from '../web/directory.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
 
 function snapshot(time) {
-  return {schema_version: 1, generated_at: time, resources: [{
+  const value = {schema_version: 1, generated_at: time, resources: [{
     id: 'fixture', name: 'Fixture only', address: 'Test address', category: 'meal',
-    latitude: 0, longitude: 0, source_name: 'Test fixture',
+    latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
   }]};
+  value.resources_sha256 = resourcesDigest(value.resources);
+  return value;
 }
 
 for (const time of ['2026-02-30T12:00:00Z', '2026-02-29T12:00:00Z',

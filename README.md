@@ -112,6 +112,14 @@ prototype banner, shows each listing's source and verification date, and never
 displays hours, availability or open-now claims, which the export deliberately
 omits. `web/directory.json` is generated output and is git-ignored.
 
+Every export embeds `resources_sha256`, a SHA-256 over the canonical form of
+the reviewed records, and the page recomputes it before trusting any field:
+a corrupted or inconsistently edited export fails closed instead of rendering
+half-reviewed data. It is a consistency check, not a signature - a host that
+can replace the file can recompute the digest. The canonical form is shared
+byte-for-byte between `app/export_directory.py` and `web/export-integrity.mjs`,
+pinned by a common test vector in both test suites.
+
 ## Webhook security
 
 When `TWILIO_AUTH_TOKEN` is set, `/sms` only accepts requests carrying a valid

@@ -26,7 +26,7 @@ def exported():
 
 @pytest.mark.parametrize("scenario", [
     "results", "no_matches", "expiry", "bad_source", "bad_coordinate",
-    "bad_timestamp", "duplicate", "invalid_version", "failed_refresh",
+    "bad_timestamp", "duplicate", "invalid_version", "failed_refresh", "tampered",
 ])
 def test_python_export_through_browser_refresh_session(tmp_path, scenario):
     if not shutil.which("node"):
@@ -42,24 +42,32 @@ def test_python_export_through_browser_refresh_session(tmp_path, scenario):
         data["resources"].append(data["resources"][0])
     elif scenario == "invalid_version":
         data["schema_version"] = 2
+    elif scenario == "tampered":
+        data["resources"][0]["name"] = "Edited after export"
     path = tmp_path / "snapshot.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     session_module = Path("web/directory-session.mjs").resolve().as_uri()
     loader_module = Path("web/directory-loader.mjs").resolve().as_uri()
+    integrity_module = Path("web/export-integrity.mjs").resolve().as_uri()
+    # Mutated fixtures re-sign so their own validator still runs; the tampered
+    # scenario deliberately keeps the stale digest.
+    resign = scenario in {"bad_source", "bad_coordinate", "bad_timestamp", "duplicate"}
     now_ms = int(NOW.timestamp() * 1000)
     category = data["resources"][0]["category"]
     other = "shower" if category != "shower" else "meal"
     expected = "unavailable" if scenario.startswith("bad_") or scenario in {
-        "duplicate", "invalid_version"
+        "duplicate", "invalid_version", "tampered"
     } else "no_matches" if scenario == "no_matches" else "results"
     script = f'''
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {{createDirectorySession}} from {json.dumps(session_module)};
 import {{createDirectoryLoader}} from {json.dumps(loader_module)};
+import {{resourcesDigest}} from {json.dumps(integrity_module)};
 let now = {now_ms};
 const session = createDirectorySession(() => now);
 const snapshot = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+if ({json.dumps(resign)}) snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
 let fail = false;
 const loader = createDirectoryLoader(session, async () => {{
   if (fail) throw new Error('synthetic offline failure');

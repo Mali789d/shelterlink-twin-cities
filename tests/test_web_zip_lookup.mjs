@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs';
+import {resourcesDigest} from '../web/export-integrity.mjs';
+function signed(snapshot) {
+  snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
+  return snapshot;
+}
 import {parseCoordinates, parseLocation} from '../web/location-input.mjs';
 import {createDirectorySession} from '../web/directory-session.mjs';
 
@@ -116,11 +121,11 @@ test('a resolved ZIP feeds local search end to end', () => {
   const now = Date.parse('2026-10-21T12:00:00Z');
   const time = new Date(now).toISOString();
   const session = createDirectorySession(() => now);
-  session.replaceSnapshot({schema_version: 1, generated_at: time, resources: [{
+  session.replaceSnapshot(signed({schema_version: 1, generated_at: time, resources: [{
     id: 'fixture', name: 'Synthetic fixture', category: 'shelter', address: 'Test address',
-    latitude: 44.975, longitude: -93.258, source_name: 'Test fixture',
+    latitude: 44.975, longitude: -93.258, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
-  }]});
+  }]}));
   const state = session.search(parseLocation('55415'));
   assert.equal(state.status, 'results');
   assert.ok(state.results[0].distanceMiles < 0.5);
