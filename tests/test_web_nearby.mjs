@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readDirectory, nearbyResources} from '../web/directory.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 
 const now = Date.now();
 const time = new Date(now).toISOString();
@@ -14,7 +14,7 @@ function directory(points = [['origin', 0, 0, 'meal'], ['east', 0, 1, 'shelter']
       source_name: 'Test fixture', source_url: 'https://example.com/',
       verified_at: time,
     }))};
-  snapshot.resources_sha256 = resourcesDigest(snapshot.resources);
+  snapshot.export_sha256 = exportDigest(snapshot);
   return readDirectory(snapshot, now);
 }
 const origin = {latitude: 0, longitude: 0};
