@@ -1,6 +1,7 @@
 // Export integrity: a corrupted or inconsistently edited export never renders.
-// The exporter (app/export_directory.py) embeds resources_sha256 over the
-// canonical form of the reviewed records; readDirectory recomputes it before
+// The exporter (app/export_directory.py) embeds export_sha256 over the
+// canonical form of the reviewed envelope - schema_version, generated_at and
+// the exact rendered record fields; readDirectory recomputes it before
 // trusting any field. This is a consistency check, not a signature: a host
 // that can replace the file can recompute the digest. Canonical form must
 // match the Python side byte-for-byte:
@@ -87,9 +88,9 @@ export function canonicalJson(value) {
 export const EXPORT_RESOURCE_FIELDS = ['address', 'category', 'id', 'latitude',
   'longitude', 'name', 'phone', 'source_name', 'source_url', 'verified_at', 'website'];
 
-export function resourcesDigest(resources) {
+function projectedResources(resources) {
   if (!Array.isArray(resources)) throw new Error('Export records must be a list');
-  const projected = resources.map(item => {
+  return resources.map(item => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
       throw new Error('Invalid export record');
     }
@@ -100,5 +101,28 @@ export function resourcesDigest(resources) {
     }
     return record;
   });
-  return sha256Hex(canonicalJson(projected));
+}
+
+export function resourcesDigest(resources) {
+  return sha256Hex(canonicalJson(projectedResources(resources)));
+}
+
+// The envelope fields the page consults when deciding whether and what to
+// render, shared with EXPORT_ENVELOPE_FIELDS in app/export_directory.py.
+// generated_at gates the freshness window and schema_version gates
+// interpretation: a stale export rolled forward must fail the same check as
+// an edited record. The notice stays out; the page renders its own pinned
+// wording, never the snapshot's.
+export const EXPORT_ENVELOPE_FIELDS = ['generated_at', 'resources', 'schema_version'];
+
+export function exportDigest(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)
+      || EXPORT_ENVELOPE_FIELDS.some(key => !(key in snapshot))) {
+    throw new Error('Export misses a reviewed envelope field');
+  }
+  return sha256Hex(canonicalJson({
+    generated_at: snapshot.generated_at,
+    resources: projectedResources(snapshot.resources),
+    schema_version: snapshot.schema_version,
+  }));
 }
