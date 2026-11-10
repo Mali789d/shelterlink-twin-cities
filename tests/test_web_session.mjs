@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDirectorySession} from '../web/directory-session.mjs';
-import {resourcesDigest} from '../web/export-integrity.mjs';
+import {exportDigest} from '../web/export-integrity.mjs';
 
 const initial = Date.parse('2026-10-08T12:00:00Z');
 const origin = {latitude: 0, longitude: 0};
@@ -12,7 +12,7 @@ function snapshot(now = initial) {
     latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: time,
   }]};
-  value.resources_sha256 = resourcesDigest(value.resources);
+  value.export_sha256 = exportDigest(value);
   return value;
 }
 function setup() {
