@@ -271,6 +271,11 @@ links to the previous record, so an edited or reordered earlier entry fails
 Appends refuse unexplained notes and no-change snapshots; a local chain cannot prove the
 latest record alone, so verification also anchors it against the current snapshot. The
 history records operator review events only - not provider verification or publication.
+History reads reject unknown fields, malformed SHA-256 digests, non-integer or
+negative counts, and blank or oversized review notes before any append or
+re-check can write. When the snapshot digest matches the tail, verification
+also checks its resource count; a hash link alone cannot establish that count.
+Without the matching snapshot, the count is only recorded metadata.
 
 The verified seed carries its own history at `data/verified_resources.history.jsonl`: every change to `data/verified_resources.json` must be recorded with an append in the same commit, and the test suite fails when the seed drifts from its latest recorded review. Record a source re-check with one command - `python -m app.seed_review data/verified_resources.json --history data/verified_resources.history.jsonl --checked <id> --note "what was re-checked"` - which validates everything before writing, re-dates only the named records, appends the anchoring record, and restores the original snapshot if the history write fails, so the tree never sits half-updated.
 

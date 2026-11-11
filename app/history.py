@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,6 +56,32 @@ def _aware_instant(value, label: str) -> None:
         raise ValueError(f"{label}: recorded_at must include a timezone")
 
 
+def _validate_record(record, line_number):
+    """Accept only metadata the writer itself can emit, before chain checks.
+
+    A matching hash link does not make malformed counts or unexplained notes
+    meaningful. Keep record shape strict so unknown fields cannot silently
+    acquire audit semantics in a future reader.
+    """
+    label = f"history line {line_number}"
+    if not isinstance(record, dict) or set(record) != set(RECORD_FIELDS):
+        raise ValueError(f"{label} must contain exactly the review record fields")
+    _aware_instant(record["recorded_at"], label)
+    for field in ("snapshot_sha256", "previous_sha256"):
+        value = record[field]
+        if field == "previous_sha256" and value is None:
+            continue
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            raise ValueError(f"{label}: {field} must be a lowercase SHA-256 hex digest")
+    count = record["resource_count"]
+    # bool is a subclass of int, but cannot express a reviewed record count.
+    if type(count) is not int or count < 0:
+        raise ValueError(f"{label}: resource_count must be a non-negative integer")
+    note = record["note"]
+    if not isinstance(note, str) or not note.strip() or len(note) > MAX_NOTE_LENGTH:
+        raise ValueError(f"{label}: note must explain the review within the length limit")
+
+
 def read_history(path) -> list:
     """Parse a history log, bounding bytes and validating each record's shape."""
     path = Path(path)
@@ -69,9 +96,7 @@ def read_history(path) -> list:
         if not line.strip():
             continue
         record = json.loads(line, object_pairs_hook=unique_object)
-        if not isinstance(record, dict) or any(field not in record for field in RECORD_FIELDS):
-            raise ValueError(f"history line {line_number} is not a complete record object")
-        _aware_instant(record["recorded_at"], f"history line {line_number}")
+        _validate_record(record, line_number)
         records.append(record)
     return records
 
@@ -190,8 +215,17 @@ def verify_history(history_path, snapshot_path=None, at=None) -> dict:
             result["snapshot_matches_latest"] = False
             result["problems"].append("history is empty")
         else:
-            digest = snapshot_digest(load_resources(snapshot_path))
+            resources = load_resources(snapshot_path)
+            digest = snapshot_digest(resources)
+            count_matches = len(resources) == records[-1]["resource_count"]
             result["snapshot_matches_latest"] = digest == records[-1]["snapshot_sha256"]
+            # Only compare counts when the digest identifies this snapshot.
+            # A legitimately changed snapshot may have a different count and
+            # can still be recorded through append_record.
+            if result["snapshot_matches_latest"] and not count_matches:
+                result["chain_ok"] = False
+                result["problems"].append(
+                    f"line {len(records)}: resource_count does not match the anchored snapshot")
     return result
 
 

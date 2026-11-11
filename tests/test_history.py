@@ -158,7 +158,7 @@ def test_cli_append_then_verify_round_trip(tmp_path):
 
 
 def _record_line(recorded_at):
-    return json.dumps({"recorded_at": recorded_at, "snapshot_sha256": "x" * 64,
+    return json.dumps({"recorded_at": recorded_at, "snapshot_sha256": "a" * 64,
                        "resource_count": 1, "note": "review", "previous_sha256": None})
 
 
@@ -225,7 +225,7 @@ def test_cli_refuses_broken_chain_and_preserves_it(tmp_path):
     snapshot = write_snapshot(tmp_path / "v1.json", resource())
     append_record(history, snapshot, "First review", at=AT)
     record = json.loads(history.read_text())
-    record["previous_sha256"] = "not-the-root"
+    record["previous_sha256"] = "a" * 64
     history.write_text(json.dumps(record) + "\n")
     before = history.read_bytes()
     changed = write_snapshot(tmp_path / "v2.json", resource(name="New version"))
@@ -357,3 +357,69 @@ def test_verify_rejects_a_naive_verification_time(tmp_path):
     history = write_chain(tmp_path / "history.jsonl", _hand_built_chain([AT]))
     with pytest.raises(ValueError, match="timezone"):
         verify_history(history, at=datetime(2026, 10, 29, 12, 0))
+
+
+@pytest.mark.parametrize('field, value', [
+    ('snapshot_sha256', 'x' * 64), ('snapshot_sha256', 'A' * 64),
+    ('snapshot_sha256', 'a' * 63), ('snapshot_sha256', None),
+    ('previous_sha256', ''), ('previous_sha256', ['a' * 64]),
+    ('resource_count', True), ('resource_count', -1),
+    ('resource_count', 1.0), ('resource_count', '1'),
+    ('note', ''), ('note', '  '), ('note', 1), ('note', ['review']),
+    ('note', 'x' * (MAX_NOTE_LENGTH + 1)), ('unexpected_claim', 'approved'),
+])
+def test_malformed_metadata_refuses_reads_verification_and_appends(tmp_path, field, value):
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    changed = write_snapshot(tmp_path / 'changed.json', resource(name='Reviewed change'))
+    history = tmp_path / 'history.jsonl'
+    record = append_record(history, snapshot, 'Initial review', at=AT)
+    record[field] = value
+    history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    before = history.read_bytes()
+    snapshot_before = changed.read_bytes()
+    for action in (lambda: read_history(history),
+                   lambda: verify_history(history, snapshot),
+                   lambda: append_record(history, changed, 'Next review', at=AT)):
+        with pytest.raises(ValueError, match='history line 1'):
+            action()
+    assert history.read_bytes() == before
+    assert changed.read_bytes() == snapshot_before
+    assert not list(tmp_path.glob('tmp*'))
+
+
+def test_validly_encoded_wrong_tail_count_fails_snapshot_anchor(tmp_path):
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    history = tmp_path / 'history.jsonl'
+    record = append_record(history, snapshot, 'Initial review', at=AT)
+    record['resource_count'] = 999  # well-formed, but contradicts the hashed snapshot
+    history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    before = history.read_bytes()
+    result = verify_history(history, snapshot, at=AT)
+    assert result['snapshot_matches_latest'] is True
+    assert result['chain_ok'] is False
+    assert result['problems'] == ['line 1: resource_count does not match the anchored snapshot']
+    # Without a snapshot, count truth cannot be checked. Do not pretend otherwise.
+    assert verify_history(history, at=AT)['chain_ok'] is True
+    assert history.read_bytes() == before
+
+
+def test_zero_count_is_valid_for_an_empty_snapshot(tmp_path):
+    snapshot = write_snapshot(tmp_path / 'snapshot.json')
+    history = tmp_path / 'history.jsonl'
+    append_record(history, snapshot, 'Reviewed removal of the last record', at=AT)
+    assert read_history(history)[0]['resource_count'] == 0
+    assert verify_history(history, snapshot, at=AT)['chain_ok'] is True
+
+
+def test_cli_malformed_metadata_fails_without_changing_history(tmp_path):
+    history = tmp_path / 'history.jsonl'
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    record = append_record(history, snapshot, 'Initial review', at=AT)
+    record['resource_count'] = True
+    history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    before = history.read_bytes()
+    result = subprocess.run([sys.executable, '-m', 'app.history', 'verify',
+                             str(history), str(snapshot)], capture_output=True, text=True)
+    assert result.returncode != 0
+    assert 'history line 1: resource_count' in result.stderr
+    assert history.read_bytes() == before
