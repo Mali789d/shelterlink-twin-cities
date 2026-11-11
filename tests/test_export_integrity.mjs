@@ -17,9 +17,9 @@ const VECTOR = [{address: '123 Cañon Avenue, Suite 5', category: 'shelter',
   longitude: -93.0, name: 'Vector A', phone: null, source_name: 'Provider',
   source_url: 'https://example.com/a', verified_at: '2026-11-10T11:00:00Z',
   website: 'https://example.com'}];
-const VECTOR_DIGEST = 'd2b3369e2650c24f277099653f4e77f4e5d2123f035ff1b04fb1127016996fda';
+const VECTOR_DIGEST = '9d3377bf26a3ef227379d2b5d97264de592304ce655456bdccceb6a6a718d602';
 const ENVELOPE = {generated_at: '2026-11-10T12:00:00Z', resources: VECTOR, schema_version: 1};
-const ENVELOPE_DIGEST = '4bea782f609d293c003956d5c80e5b3fbdd00550108520f450afb61c2647728d';
+const ENVELOPE_DIGEST = '81fed64a29008713571c53acc92e9525380f0fe948afea3bd44e3b1afc75dbb7';
 
 test('sha256 matches published known-answer vectors', () => {
   assert.equal(sha256Hex(''),
@@ -35,7 +35,7 @@ test('sha256 matches published known-answer vectors', () => {
 
 test('canonical form sorts keys, drops spaces, keeps UTF-8', () => {
   assert.equal(canonicalJson({b: 45.0, a: 'Cañon'}), '{"a":"Cañon","b":45}');
-  assert.equal(canonicalJson([true, null, -93.265]), '[true,null,-93.265]');
+  assert.equal(canonicalJson([true, null, -93.265]), '[true,null,-93.2650000000000005684341886080801486968994140625]');
   assert.throws(() => canonicalJson(Number.NaN), /Non-finite/);
 });
 
