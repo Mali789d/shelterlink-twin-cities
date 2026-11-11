@@ -120,7 +120,12 @@ field: a corrupted or inconsistently edited export, including one whose
 rendering half-reviewed data. It is a consistency check, not a signature - a host that
 can replace the file can recompute the digest. The canonical form is shared
 byte-for-byte between `app/export_directory.py` and `web/export-integrity.mjs`,
-pinned by a common test vector in both test suites.
+pinned by common test vectors in both test suites. Numbers use their exact
+binary64 decimal expansion, not Python or JavaScript's different shortest
+spellings; negative zero becomes zero. This affects only the digest input,
+not displayed coordinates. Exports from the earlier shortest-number format
+must be regenerated with this exporter; the reader does not fall back to a
+weaker or incompatible digest.
 
 ## Webhook security
 

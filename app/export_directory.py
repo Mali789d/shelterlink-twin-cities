@@ -57,8 +57,9 @@ def directory_snapshot(resources, at: datetime) -> dict:
 def _canonical_export_json(value) -> str:
     """Canonical export text, byte-identical to web/export-integrity.mjs canonicalJson.
 
-    Object keys sorted, no spaces, UTF-8, shortest round-trip numbers; integral
-    floats render as integers because JavaScript has a single number type. The
+    Object keys sorted, no spaces, UTF-8, exact decimal numbers. Finite
+    binary64 values expand without exponent notation, independent of the
+    host language's shortest-number formatting; negative zero becomes zero. The
     reader recomputes this exact form, so any drift between the two
     implementations fails every export rather than silently passing.
     """
@@ -67,7 +68,14 @@ def _canonical_export_json(value) -> str:
     if isinstance(value, float):
         if not math.isfinite(value):
             raise ValueError("non-finite numbers cannot be canonicalized")
-        return str(int(value)) if value.is_integer() else repr(value)
+        # The denominator of a binary64 ratio is a power of two. Multiplying
+        # by 5**places gives its exact decimal expansion with no rounding.
+        numerator, denominator = value.as_integer_ratio()
+        places = denominator.bit_length() - 1
+        digits = str(abs(numerator) * 5 ** places).zfill(places + 1)
+        if places:
+            digits = (digits[:-places] + "." + digits[-places:]).rstrip("0").rstrip(".")
+        return ("-" if numerator < 0 else "") + digits
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
