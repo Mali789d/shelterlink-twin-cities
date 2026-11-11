@@ -105,3 +105,28 @@ if ({json.dumps(scenario)} === 'failed_refresh') {{
     result = subprocess.run(["node", "--input-type=module", "-e", script, str(path)],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('latitude, longitude', [
+    (1e-6, -1e-7), (0.1, -0.0), (44.9778, -93.265),
+])
+def test_fractional_coordinate_export_passes_real_browser_integrity(latitude, longitude):
+    if not shutil.which('node'):
+        pytest.skip('Node is required for browser contract tests')
+    item = load_resources()[0].model_copy(update={
+        'is_sample': False, 'verified_at': NOW,
+        'latitude': latitude, 'longitude': longitude,
+    })
+    data = directory_snapshot([item], NOW)
+    module = Path('web/directory.mjs').resolve().as_uri()
+    script = f'''import {{readDirectory}} from {json.dumps(module)};
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const data = JSON.parse(fs.readFileSync(0, 'utf8'));
+const directory = readDirectory(data, {int(NOW.timestamp()*1000)});
+assert.equal(directory.resources.length, 1);
+assert.equal(directory.resources[0].latitude, {latitude});
+assert.equal(directory.resources[0].longitude === {longitude}, true);'''
+    result = subprocess.run(['node', '--input-type=module', '-e', script],
+                            input=json.dumps(data), text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
