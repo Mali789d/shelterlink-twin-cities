@@ -25,12 +25,12 @@ VECTOR = [{"address": "123 Cañon Avenue, Suite 5", "category": "shelter",
            "phone": None, "source_name": "Provider",
            "source_url": "https://example.com/a",
            "verified_at": "2026-11-10T11:00:00Z", "website": "https://example.com"}]
-VECTOR_DIGEST = "d2b3369e2650c24f277099653f4e77f4e5d2123f035ff1b04fb1127016996fda"
+VECTOR_DIGEST = "9d3377bf26a3ef227379d2b5d97264de592304ce655456bdccceb6a6a718d602"
 
 # The envelope the page consults when deciding whether and what to render.
 ENVELOPE = {"generated_at": "2026-11-10T12:00:00Z", "resources": VECTOR,
             "schema_version": 1}
-ENVELOPE_DIGEST = "4bea782f609d293c003956d5c80e5b3fbdd00550108520f450afb61c2647728d"
+ENVELOPE_DIGEST = "81fed64a29008713571c53acc92e9525380f0fe948afea3bd44e3b1afc75dbb7"
 
 
 def test_shared_record_vector_matches_the_web_reader():
@@ -90,11 +90,11 @@ def test_digest_refuses_an_envelope_missing_a_reviewed_field():
             export_digest({k: v for k, v in ENVELOPE.items() if k != key})
 
 
-def test_canonical_form_matches_javascript_number_and_string_rules():
-    # Integral floats render as integers (JavaScript has one number type);
+def test_canonical_form_uses_exact_binary64_numbers_and_utf8_strings():
+    # Integral floats render as integers; fractional floats expand exactly.
     # strings keep UTF-8 without ASCII escaping; object keys sort.
     assert _canonical_export_json({"b": 45.0, "a": "Cañon"}) == '{"a":"Cañon","b":45}'
-    assert _canonical_export_json([True, None, -93.265]) == '[true,null,-93.265]'
+    assert _canonical_export_json([True, None, -93.265]) == '[true,null,-93.2650000000000005684341886080801486968994140625]'
     with pytest.raises(ValueError, match="non-finite"):
         _canonical_export_json(float("inf"))
 
@@ -103,3 +103,40 @@ def test_digest_is_order_sensitive_and_deterministic():
     assert resources_digest(VECTOR) == resources_digest(json.loads(json.dumps(VECTOR)))
     assert resources_digest(list(reversed(VECTOR))) != VECTOR_DIGEST
     assert export_digest(ENVELOPE) == export_digest(json.loads(json.dumps(ENVELOPE)))
+
+
+@pytest.mark.parametrize('value, expected', [
+    (0.0, '0'), (-0.0, '0'), (1.0, '1'), (-180.0, '-180'),
+    (0.000001, '0.000000999999999999999954748111825886258685613938723690807819366455078125'),
+    (0.1, '0.1000000000000000055511151231257827021181583404541015625'),
+])
+def test_exact_binary64_decimal_vectors(value, expected):
+    assert _canonical_export_json(value) == expected
+
+
+def test_numeric_canonicalization_matches_javascript_for_binary64_values():
+    import random
+    import shutil
+    import struct
+    import subprocess
+    from pathlib import Path
+
+    if not shutil.which('node'):
+        pytest.skip('Node is required for cross-language numeric tests')
+    rng = random.Random(20261111)
+    values = [0.0, -0.0, 1e-6, 1e-7, 1e20, 1e21, 0.1, 44.9778, -93.265,
+              float.fromhex('0x0.0000000000001p-1022'),
+              float.fromhex('0x1.fffffffffffffp+1023')]
+    for _ in range(500):
+        number = struct.unpack('>d', rng.getrandbits(64).to_bytes(8, 'big'))[0]
+        if __import__('math').isfinite(number):
+            values.append(number)
+    module = Path('web/export-integrity.mjs').resolve().as_uri()
+    script = f'''import {{canonicalJson}} from {json.dumps(module)};
+import fs from 'node:fs';
+const values = JSON.parse(fs.readFileSync(0, 'utf8'));
+console.log(JSON.stringify(values.map(canonicalJson)));'''
+    result = subprocess.run(['node', '--input-type=module', '-e', script],
+                            input=json.dumps(values), text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [_canonical_export_json(x) for x in values]
