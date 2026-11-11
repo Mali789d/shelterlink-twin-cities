@@ -5,7 +5,7 @@
 // trusting any field. This is a consistency check, not a signature: a host
 // that can replace the file can recompute the digest. Canonical form must
 // match the Python side byte-for-byte:
-// object keys sorted, no spaces, UTF-8, shortest round-trip numbers.
+// object keys sorted, no spaces, UTF-8, exact binary64 decimal expansions (negative zero becomes zero).
 // Pinned by shared test vectors in tests/test_export_integrity.mjs and
 // tests/test_export_integrity.py.
 
@@ -64,13 +64,37 @@ export function sha256Hex(input) {
   return h.map(word => (word >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
+// Exact decimal expansion, rather than Python/JS shortest-format heuristics.
+// Both implementations work from the same binary64 value and use integer
+// arithmetic, including for subnormals. No locale, rounding or exponent rules.
+function canonicalNumber(value) {
+  if (!Number.isFinite(value)) throw new Error('Non-finite numbers cannot be canonicalized');
+  if (value === 0) return '0';
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, Math.abs(value));
+  const bits = view.getBigUint64(0);
+  const exponent = Number((bits >> 52n) & 0x7ffn);
+  let numerator = bits & ((1n << 52n) - 1n);
+  if (exponent !== 0) numerator |= 1n << 52n;
+  let power = (exponent === 0 ? -1022 : exponent - 1023) - 52;
+  // Cancel factors of two to avoid needlessly long decimal expansions.
+  while (power < 0 && (numerator & 1n) === 0n) { numerator >>= 1n; power += 1; }
+  let digits;
+  if (power >= 0) digits = (numerator << BigInt(power)).toString();
+  else {
+    const places = -power;
+    digits = (numerator * 5n ** BigInt(places)).toString().padStart(places + 1, '0');
+    digits = `${digits.slice(0, -places)}.${digits.slice(-places)}`;
+  }
+  return (value < 0 ? '-' : '') + digits;
+}
+
 export function canonicalJson(value) {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') {
     return JSON.stringify(value);
   }
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('Non-finite numbers cannot be canonicalized');
-    return JSON.stringify(value);
+    return canonicalNumber(value);
   }
   if (Array.isArray(value)) {
     return `[${value.map(canonicalJson).join(',')}]`;
