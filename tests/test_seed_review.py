@@ -166,3 +166,23 @@ def test_record_review_cli_roundtrip(tmp_path, capsys, monkeypatch):
     assert printed["history_record"]["note"] == "operator re-check"
     anchor = verify_history(history, snapshot, at=AT)
     assert anchor["chain_ok"] and anchor["snapshot_matches_latest"]
+
+
+@pytest.mark.parametrize('damage', ['blank_note', 'boolean_count', 'wrong_count'])
+def test_review_rejects_bad_history_metadata_before_any_write(tmp_path, damage):
+    snapshot = _write_snapshot(tmp_path, _record('a'))
+    history = tmp_path / 'history.jsonl'
+    record_review(snapshot, history, {'a'}, 'first review', AT)
+    record = json.loads(history.read_text())
+    if damage == 'blank_note':
+        record['note'] = ' '
+    elif damage == 'boolean_count':
+        record['resource_count'] = True
+    else:
+        record['resource_count'] = 999
+    history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    before = snapshot.read_bytes(), history.read_bytes()
+    with pytest.raises(ValueError, match='history line 1|resource_count'):
+        record_review(snapshot, history, {'a'}, 'next review', AT + timedelta(hours=1))
+    assert (snapshot.read_bytes(), history.read_bytes()) == before
+    assert not list(tmp_path.glob('tmp*'))
