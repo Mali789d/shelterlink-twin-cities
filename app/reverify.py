@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .data import MAX_SNAPSHOT_BYTES, load_resources
-from .freshness import Freshness, resource_freshness
+from .freshness import DEFAULT_MAX_AGE, Freshness, resource_freshness
 from .models import Resource
 
 
@@ -65,10 +65,45 @@ def due_resources(resources: list[Resource], at: datetime,
             # reverify refuses sample records, so the queue must say which due
             # records need replacement instead - an operator feeding this list
             # into --checked otherwise hits a refusal the list already implied.
+            instant = at.astimezone(timezone.utc)
+            verified = item.verified_at.astimezone(timezone.utc)
+            future = verified > instant
+            reason = "future_dated" if future else "expired" if stale else "expiring"
+            action = ("replace" if item.is_sample else
+                      "correct_timestamp" if future else "reverify")
+            deadline = verified + DEFAULT_MAX_AGE
             due.append({"id": item.id, "source_url": str(item.source_url),
                         "verified_at": item.verified_at.isoformat(),
-                        "stale": stale, "sample": item.is_sample})
+                        "stale": stale, "sample": item.is_sample,
+                        "reason": reason, "action": action,
+                        # A future timestamp establishes no usable freshness window.
+                        "freshness_deadline": None if future else deadline.isoformat(),
+                        "seconds_remaining": None if future else (deadline - instant).total_seconds()})
     return due
+
+
+def review_queue(resources, at: datetime, within: timedelta | None = None) -> dict:
+    """Read-only operator worklist, not verification or publication approval.
+
+    Invalid future dates come first, then the oldest expired records, then
+    soonest-expiring records. IDs break ties for repeatable output. Counts
+    and source pointers help plan checks without disclosing contact details.
+    """
+    due = due_resources(resources, at, within)
+    priority = {"future_dated": 0, "expired": 1, "expiring": 2}
+    due.sort(key=lambda item: (priority[item["reason"]],
+                              item["freshness_deadline"] or "", item["id"]))
+    return {
+        "notice": "Review queue only. Not provider verification, live availability or publication approval.",
+        "as_of": at.isoformat(),
+        "within_seconds": (within or timedelta(0)).total_seconds(),
+        "due_count": len(due),
+        "reason_counts": {reason: sum(item["reason"] == reason for item in due)
+                          for reason in priority},
+        "action_counts": {action: sum(item["action"] == action for item in due)
+                          for action in ("replace", "correct_timestamp", "reverify")},
+        "records": due,
+    }
 
 
 def reverify(resources: list[Resource], checked_ids: set[str], at: datetime) -> list[Resource]:
@@ -146,7 +181,11 @@ def main():
                         help="list records due for re-verification and exit")
     parser.add_argument("--within-hours", type=_horizon_hours, metavar="HOURS",
                         help="with --due, include records expiring within 0 to 168 elapsed hours")
+    parser.add_argument("--json", action="store_true",
+                        help="with --due, print a prioritized review queue JSON report")
     args = parser.parse_args()
+    if args.json and not args.due:
+        parser.error("--json requires --due")
     if args.within_hours is not None and not args.due:
         parser.error("--within-hours requires --due")
     if args.due and args.checked:
@@ -154,11 +193,12 @@ def main():
     now = datetime.now(timezone.utc)
     resources = load_resources(args.snapshot)
     if args.due:
-        for item in due_resources(resources, now, within=(
-                timedelta(hours=args.within_hours) if args.within_hours is not None else None)):
-            # A stable action column: samples cannot be re-verified, only replaced.
-            action = "replace" if item["sample"] else "reverify"
-            print(f"{item['id']}\t{item['verified_at']}\t{item['source_url']}\t{action}")
+        within = timedelta(hours=args.within_hours) if args.within_hours is not None else None
+        if args.json:
+            print(json.dumps(review_queue(resources, now, within), ensure_ascii=False, indent=2))
+            return
+        for item in due_resources(resources, now, within):
+            print(f"{item['id']}\t{item['verified_at']}\t{item['source_url']}\t{item['action']}")
         return
     count = reverify_file(args.snapshot, set(args.checked), now)
     print(f"re-verified {count} record(s) at {now.isoformat()}")
