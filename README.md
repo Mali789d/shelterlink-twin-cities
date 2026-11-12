@@ -281,6 +281,17 @@ checks pass. A broken chain, incoherent timeline or supplied snapshot mismatch
 exits 1, so shell and CI callers can rely on the exit status. A chain-only
 check with no snapshot does not claim to verify a snapshot anchor.
 
+For a prioritized, read-only operator worklist, run
+`python -m app.reverify reviewed-resources.json --due --within-hours 6 --json`.
+The report groups counts by reason/action and orders future-date problems first,
+then oldest expired records, then soonest-expiring records, with IDs breaking ties.
+Each row includes its source pointer, reason, action, UTC freshness deadline and
+seconds remaining. Future dates have no valid deadline and require timestamp
+correction, not backward re-verification; samples require replacement. The
+four-column default `--due` output also uses `correct_timestamp` for future-dated
+real records. These are review instructions, never evidence of provider checks,
+live availability or permission to publish. The command does not write dates.
+
 The verified seed carries its own history at `data/verified_resources.history.jsonl`: every change to `data/verified_resources.json` must be recorded with an append in the same commit, and the test suite fails when the seed drifts from its latest recorded review. Record a source re-check with one command - `python -m app.seed_review data/verified_resources.json --history data/verified_resources.history.jsonl --checked <id> --note "what was re-checked"` - which validates everything before writing, re-dates only the named records, appends the anchoring record, and restores the original snapshot if the history write fails, so the tree never sits half-updated.
 
 `python -m app.merge base.json candidate.json merged.json` applies a reviewed candidate
