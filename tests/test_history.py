@@ -423,3 +423,70 @@ def test_cli_malformed_metadata_fails_without_changing_history(tmp_path):
     assert result.returncode != 0
     assert 'history line 1: resource_count' in result.stderr
     assert history.read_bytes() == before
+
+
+def _verify_cli(history, snapshot=None):
+    args = [sys.executable, '-m', 'app.history', 'verify', str(history)]
+    if snapshot is not None:
+        args.append(str(snapshot))
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize('damage', ['link', 'timeline', 'future', 'count', 'snapshot', 'empty'])
+def test_verify_cli_failure_report_exits_nonzero_without_writes(tmp_path, damage):
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    history = tmp_path / 'history.jsonl'
+    record = append_record(history, snapshot, 'Initial review', at=AT)
+    if damage == 'link':
+        record['previous_sha256'] = 'a' * 64
+    elif damage == 'future':
+        record['recorded_at'] = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    elif damage == 'count':
+        record['resource_count'] = 999
+    if damage == 'timeline':
+        write_chain(history, _hand_built_chain([AT, AT - timedelta(hours=1)]))
+    elif damage == 'empty':
+        history.write_text('', encoding='utf-8')
+    else:
+        history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    if damage == 'snapshot':
+        write_snapshot(snapshot, resource(name='Changed without review'))
+    before = history.read_bytes(), snapshot.read_bytes()
+    result = _verify_cli(history, snapshot)
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert not report['chain_ok'] or report['snapshot_matches_latest'] is False
+    assert result.stderr == ''  # ordinary failed checks are JSON, not tracebacks
+    assert (history.read_bytes(), snapshot.read_bytes()) == before
+
+
+def test_verify_cli_valid_anchor_and_chain_only_exit_success(tmp_path):
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    history = tmp_path / 'history.jsonl'
+    append_record(history, snapshot, 'Initial review', at=AT)
+    anchored = _verify_cli(history, snapshot)
+    assert anchored.returncode == 0
+    assert json.loads(anchored.stdout)['snapshot_matches_latest'] is True
+    chain_only = _verify_cli(history)
+    assert chain_only.returncode == 0
+    assert 'snapshot_matches_latest' not in json.loads(chain_only.stdout)
+
+
+def test_verify_cli_broken_chain_without_snapshot_still_fails(tmp_path):
+    history = write_chain(tmp_path / 'history.jsonl', _hand_built_chain([AT]))
+    record = json.loads(history.read_text())
+    record['previous_sha256'] = 'a' * 64
+    history.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    result = _verify_cli(history)
+    assert result.returncode == 1
+    assert json.loads(result.stdout)['chain_ok'] is False
+
+
+def test_verify_cli_missing_history_with_snapshot_fails_but_chain_only_is_empty(tmp_path):
+    history = tmp_path / 'not-created.jsonl'
+    snapshot = write_snapshot(tmp_path / 'snapshot.json', resource())
+    anchored = _verify_cli(history, snapshot)
+    assert anchored.returncode == 1
+    assert 'history is empty' in json.loads(anchored.stdout)['problems']
+    assert _verify_cli(history).returncode == 0
+    assert not history.exists()
