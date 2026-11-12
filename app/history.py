@@ -244,8 +244,13 @@ def main():
         record = append_record(args.history, args.snapshot, args.note)
         print(json.dumps({"appended": record}, ensure_ascii=False, indent=2))
     else:
-        print(json.dumps(verify_history(args.history, args.snapshot),
-                         ensure_ascii=False, indent=2))
+        report = verify_history(args.history, args.snapshot)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        # A JSON problem report must also fail a shell/CI verification step.
+        # Unanchored checks intentionally assess the chain only; when a
+        # snapshot was supplied, a mismatching tail is a failed check too.
+        if not report["chain_ok"] or report.get("snapshot_matches_latest") is False:
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":
