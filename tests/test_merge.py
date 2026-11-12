@@ -292,3 +292,81 @@ def test_merge_resources_report_carries_the_unchanged_key():
     report = merge_resources(validated(resource()), validated(resource("hc-102", "Site")),
                              on_conflict="reject")
     assert report["unchanged"] == []
+
+
+@pytest.mark.parametrize('field,value', [
+    ('phone', '6125550199'), ('address', '200 Example Ave, Minneapolis'),
+    ('latitude', 45.01), ('source_url', 'https://example.org/changed'),
+])
+def test_applied_material_replacement_flags_unchanged_verification(field, value):
+    base = validated(resource(is_sample=False))
+    candidate = validated(resource(is_sample=False, **{field: value}))
+    report = merge_resources(base, candidate, on_conflict='replace')
+    assert report['verification_reviews'] == [{
+        'id': 'hc-101', 'fields': [field], 'promoted_from_sample': False}]
+    assert report['resources'] == candidate  # advisory, never a silent rewrite
+
+
+def test_merge_lists_lost_contact_and_backward_date_regressions():
+    base = validated(resource(is_sample=False, phone='6125550100',
+                              website='https://example.org/site', hours={0: [('08:00','17:00')]}))
+    candidate = validated(resource(is_sample=True, verified_at='2026-10-19T12:00:00-05:00'))
+    report = merge_resources(base, candidate, on_conflict='replace')
+    assert report['regressions'] == [{
+        'id': 'hc-101', 'lost_fields': ['hours', 'phone', 'website'],
+        'returned_to_sample': True, 'verification_moved_backwards': True}]
+    summary = json.dumps({k: report[k] for k in ('verification_reviews', 'regressions')})
+    assert '6125550100' not in summary and 'https://example.org/site' not in summary
+
+
+def test_sample_promotion_without_new_date_is_visible_in_merge():
+    report = merge_resources(validated(resource()), validated(resource(is_sample=False)),
+                             on_conflict='replace')
+    assert report['verification_reviews'] == [{
+        'id': 'hc-101', 'fields': [], 'promoted_from_sample': True}]
+
+
+@pytest.mark.parametrize('policy', ['keep', 'replace'])
+def test_no_phantom_merge_warnings_for_kept_or_identical_records(policy):
+    base = validated(resource(is_sample=False, phone='6125550100'))
+    candidate = base if policy == 'replace' else validated(resource(name='Changed', phone=None))
+    report = merge_resources(base, candidate, on_conflict=policy)
+    assert report['verification_reviews'] == [] and report['regressions'] == []
+    assert report['resources'] == base
+
+
+def test_newer_verification_date_does_not_hide_lost_contact_regression():
+    base = validated(resource(is_sample=False, phone='6125550100'))
+    candidate = validated(resource(is_sample=False, verified_at='2026-10-21T12:00:00-05:00'))
+    report = merge_resources(base, candidate, on_conflict='replace')
+    assert report['verification_reviews'] == []
+    assert report['regressions'][0]['lost_fields'] == ['phone']
+
+
+def test_merge_file_and_cli_expose_same_applied_review_without_touching_inputs(tmp_path):
+    base = write_snapshot(tmp_path / 'base.json', resource(is_sample=False, phone='6125550100'))
+    candidate = write_snapshot(tmp_path / 'candidate.json', resource(is_sample=False, name='Moved Site'))
+    before = base.read_bytes(), candidate.read_bytes()
+    output = tmp_path / 'merged.json'
+    process = subprocess.run([sys.executable, '-m', 'app.merge', str(base), str(candidate),
+                              str(output), '--on-conflict', 'replace'],
+                             capture_output=True, text=True, timeout=10)
+    assert process.returncode == 0, process.stderr
+    report = json.loads(process.stdout)
+    assert report['verification_reviews'][0]['fields'] == ['name', 'phone']
+    assert report['regressions'][0]['lost_fields'] == ['phone']
+    assert (base.read_bytes(), candidate.read_bytes()) == before
+    from app.review_changes import compare_resources
+    expected = compare_resources(load_resources(base), load_resources(output))
+    assert report['verification_reviews'] == expected['verification_reviews']
+    assert report['regressions'] == expected['regressions']
+    assert '6125550100' not in process.stdout
+
+
+def test_merge_review_warnings_sort_by_id_and_leave_inputs_unchanged():
+    base = validated(resource('z', phone='6125550100'), resource('a', phone='6125550101'))
+    candidate = validated(resource('z'), resource('a'))
+    before = [x.model_dump() for x in base + candidate]
+    report = merge_resources(iter(base), iter(candidate), on_conflict='replace')
+    assert [x['id'] for x in report['regressions']] == ['a', 'z']
+    assert [x.model_dump() for x in base + candidate] == before

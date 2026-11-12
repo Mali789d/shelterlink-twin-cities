@@ -303,7 +303,15 @@ or replaced records sharing a normalized phone, punctuation-insensitive name or
 building coordinates with another record - using the same deterministic rules as the
 duplicates tool. These flags are review hints scoped to what changed: pre-existing
 pairs stay out of the report, and the merge never blocks on a heuristic. Merging
-changes no record - each keeps its own provenance and sample flag - and the merged
+changes no record - each keeps its own provenance and sample flag.
+
+Merge reports include `verification_reviews` for applied material replacements
+or sample promotions carrying an unchanged/older verification date, and
+`regressions` for lost contact/hours fields, backward dates or returns to sample.
+These reuse the standalone change-review rules and disclose IDs/field names,
+not contact values. Kept and identical candidates create no phantom warnings.
+Warnings are advisory: they do not rewrite provenance, block an approved
+replacement, prove that a newer check happened, or approve publication. The
 output remains review input for audit, history and export, not a verified or
 published directory.
 
