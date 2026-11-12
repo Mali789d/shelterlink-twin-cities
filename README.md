@@ -276,6 +276,10 @@ negative counts, and blank or oversized review notes before any append or
 re-check can write. When the snapshot digest matches the tail, verification
 also checks its resource count; a hash link alone cannot establish that count.
 Without the matching snapshot, the count is only recorded metadata.
+The `verify` command prints its JSON report and exits 0 only when the requested
+checks pass. A broken chain, incoherent timeline or supplied snapshot mismatch
+exits 1, so shell and CI callers can rely on the exit status. A chain-only
+check with no snapshot does not claim to verify a snapshot anchor.
 
 The verified seed carries its own history at `data/verified_resources.history.jsonl`: every change to `data/verified_resources.json` must be recorded with an append in the same commit, and the test suite fails when the seed drifts from its latest recorded review. Record a source re-check with one command - `python -m app.seed_review data/verified_resources.json --history data/verified_resources.history.jsonl --checked <id> --note "what was re-checked"` - which validates everything before writing, re-dates only the named records, appends the anchoring record, and restores the original snapshot if the history write fails, so the tree never sits half-updated.
 
