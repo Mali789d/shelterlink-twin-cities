@@ -19,6 +19,7 @@ from pathlib import Path
 from .data import MAX_SNAPSHOT_BYTES, load_resources
 from .duplicates import find_possible_duplicates
 from .models import Resource
+from .review_changes import compare_resources
 
 POLICIES = ("reject", "replace", "keep")
 
@@ -74,6 +75,10 @@ def merge_resources(base, candidate, on_conflict="reject") -> dict:
     changed_ids = set(added) | set(replaced)
     introduced = [flag for flag in find_possible_duplicates(merged)["flags"]
                   if changed_ids & set(flag["ids"])]
+    # Review the applied output, not the candidate: skipped and identical
+    # records must not create warnings for changes this merge did not make.
+    # Reuse the comparison rules so merge and standalone review cannot drift.
+    review = compare_resources(base, merged)
     return {
         "notice": NOTICE,
         "on_conflict": on_conflict,
@@ -82,6 +87,8 @@ def merge_resources(base, candidate, on_conflict="reject") -> dict:
         "skipped": sorted(skipped),
         "unchanged": sorted(unchanged),
         "possible_duplicates": introduced,
+        "verification_reviews": review["verification_reviews"],
+        "regressions": review["regressions"],
         "resources": merged,
     }
 
