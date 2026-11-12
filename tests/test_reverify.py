@@ -193,3 +193,98 @@ def test_cli_rejects_invalid_or_conflicting_modes_without_writing(tmp_path, args
     process = _cli(tmp_path, *args)
     assert process.returncode == 2
     assert "error:" in process.stderr
+
+
+def test_future_records_need_timestamp_correction_not_backward_reverification():
+    future = _record('future', AT + timedelta(hours=1))
+    row, = due_resources([future], AT)
+    assert row['action'] == 'correct_timestamp'
+    assert row['reason'] == 'future_dated'
+    assert row['freshness_deadline'] is None
+    assert row['seconds_remaining'] is None
+    with pytest.raises(ValueError, match='backwards'):
+        reverify([future], {'future'}, AT)
+
+
+def test_queue_prioritizes_invalid_dates_then_oldest_expired_then_expiring():
+    from app.reverify import review_queue
+    resources = [_record('soon', AT - timedelta(hours=23)),
+                 _record('old', AT - timedelta(hours=26)),
+                 _record('oldest', AT - timedelta(hours=30)),
+                 _record('future', AT + timedelta(hours=1)),
+                 _record('sample', AT - timedelta(hours=30), is_sample=True),
+                 _record('fresh', AT)]
+    before = [x.model_dump() for x in resources]
+    report = review_queue(resources, AT, timedelta(hours=2))
+    assert [row['id'] for row in report['records']] == ['future', 'oldest', 'sample', 'old', 'soon']
+    assert report['reason_counts'] == {'future_dated': 1, 'expired': 3, 'expiring': 1}
+    assert report['action_counts'] == {'replace': 1, 'correct_timestamp': 1, 'reverify': 3}
+    assert report['due_count'] == 5
+    assert report['within_seconds'] == 7200
+    assert report['records'][-1]['seconds_remaining'] == 3600
+    assert report['records'][1]['seconds_remaining'] == -21600
+    assert [x.model_dump() for x in resources] == before
+    assert all('phone' not in row and 'address' not in row for row in report['records'])
+    assert 'Not provider verification' in report['notice']
+
+
+def test_sample_future_date_still_requires_replacement():
+    row, = due_resources([_record('sample', AT + timedelta(hours=1), is_sample=True)], AT)
+    assert row['reason'] == 'future_dated' and row['action'] == 'replace'
+
+
+def test_queue_empty_and_exact_boundary():
+    from app.reverify import review_queue
+    report = review_queue([], AT)
+    assert report['due_count'] == 0 and report['records'] == []
+    assert not any(report['reason_counts'].values())
+    assert review_queue([_record('a')], AT, timedelta(hours=24))['due_count'] == 0
+    assert review_queue([_record('a')], AT, timedelta(hours=24, microseconds=1))['due_count'] == 1
+
+
+def test_queue_deadline_uses_utc_across_dst():
+    from app.reverify import review_queue
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo('America/Chicago')
+    verified = datetime(2026, 11, 1, 0, 30, tzinfo=zone)
+    now = datetime(2026, 11, 1, 23, 0, tzinfo=zone)
+    row, = review_queue([_record('a', verified)], now, timedelta(hours=1))['records']
+    assert row['freshness_deadline'] == '2026-11-02T05:30:00+00:00'
+    assert row['seconds_remaining'] == 1800
+
+
+def test_json_queue_cli_is_read_only(tmp_path):
+    process = _cli(tmp_path, '--due', '--json', '--within-hours', '48')
+    assert process.returncode == 0, process.stderr
+    report = json.loads(process.stdout)
+    assert report['due_count'] == 1
+    assert report['records'][0]['action'] == 'reverify'
+    assert report['records'][0]['reason'] == 'expiring'
+
+
+def test_json_cli_without_due_refuses_without_writes(tmp_path):
+    process = _cli(tmp_path, '--json', '--checked', 'a')
+    assert process.returncode == 2
+    assert '--json requires --due' in process.stderr
+
+
+def test_queue_order_is_independent_of_snapshot_order():
+    from app.reverify import review_queue
+    from itertools import permutations
+    records = [_record('b', AT - timedelta(hours=30)),
+               _record('a', AT - timedelta(hours=30)),
+               _record('future', AT + timedelta(hours=1))]
+    expected = review_queue(records, AT)
+    for ordering in permutations(records):
+        assert review_queue(ordering, AT) == expected
+
+
+def test_due_tsv_cli_future_action_is_not_reverify(tmp_path, capsys, monkeypatch):
+    snapshot = tmp_path / 'future.json'
+    snapshot.write_text(json.dumps([json.loads(_record(
+        'future', datetime.now(timezone.utc) + timedelta(hours=2)).model_dump_json())]))
+    before = snapshot.read_bytes()
+    monkeypatch.setattr('sys.argv', ['reverify', str(snapshot), '--due'])
+    main()
+    assert capsys.readouterr().out.strip().split('\t')[-1] == 'correct_timestamp'
+    assert snapshot.read_bytes() == before
