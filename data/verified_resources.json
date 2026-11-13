@@ -7,12 +7,12 @@
     "latitude": 44.9787648,
     "longitude": -93.2855327,
     "phone": "(612) 204-8200",
-    "website": "https://cctwincities.org/",
+    "website": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -23,12 +23,12 @@
     "latitude": 44.9477853,
     "longitude": -93.1021716,
     "phone": "(651) 266-1050",
-    "website": "https://cctwincities.org/",
+    "website": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -39,28 +39,28 @@
     "latitude": 44.9664543,
     "longitude": -93.2628453,
     "phone": "(612) 204-8300",
-    "website": "https://cctwincities.org/",
+    "website": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/mary-f-frey-minneapolis-opportunity-center/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/mary-f-frey-minneapolis-opportunity-center/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
     "id": "people-serving-people",
-    "name": "People Serving People",
+    "name": "People Serving People - Possibility Place",
     "category": "shelter",
     "address": "614 3rd Street South, Minneapolis, MN 55415",
     "latitude": 44.9772109,
     "longitude": -93.2604437,
     "phone": "(612) 332-4500",
-    "website": "https://www.peopleservingpeople.org/",
+    "website": "https://www.peopleservingpeople.org/our-locations/",
     "hours": {},
     "availability": "unknown",
     "source_name": "People Serving People",
     "source_url": "https://www.peopleservingpeople.org/our-locations/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -71,12 +71,12 @@
     "latitude": 44.94779,
     "longitude": -93.1019374,
     "phone": "(651) 404-6407",
-    "website": "https://cctwincities.org/",
+    "website": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Catholic Charities Twin Cities",
     "source_url": "https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -92,7 +92,7 @@
     "availability": "unknown",
     "source_name": "Sharing & Caring Hands",
     "source_url": "https://sharingandcaringhands.org/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -103,12 +103,12 @@
     "latitude": 44.95223,
     "longitude": -93.2767814,
     "phone": "(612) 874-8683",
-    "website": "https://simpsonhousing.org/",
+    "website": "https://simpsonhousing.org/simpson-community-shelter-apartments/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Simpson Housing Services",
     "source_url": "https://simpsonhousing.org/simpson-community-shelter-apartments/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   },
   {
@@ -119,12 +119,12 @@
     "latitude": 44.9579181,
     "longitude": -93.0859475,
     "phone": "(651) 292-1721",
-    "website": "https://www.ugmtc.org/",
+    "website": "https://www.ugmtc.org/programs/food-shelter/",
     "hours": {},
     "availability": "unknown",
     "source_name": "Union Gospel Mission Twin Cities",
     "source_url": "https://www.ugmtc.org/programs/food-shelter/",
-    "verified_at": "2026-11-11T01:56:48.742911Z",
+    "verified_at": "2026-11-13T15:55:22.302796Z",
     "is_sample": false
   }
 ]

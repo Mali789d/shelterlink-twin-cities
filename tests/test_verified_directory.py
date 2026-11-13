@@ -56,7 +56,7 @@ def test_bethel_hotel_record_matches_the_verified_source(seed):
     assert record.phone == "(651) 292-1721"
     assert not record.hours and record.availability.value == "unknown"
     assert str(record.source_url) == "https://www.ugmtc.org/programs/food-shelter/"
-    assert str(record.website) == "https://www.ugmtc.org/"
+    assert str(record.website) == "https://www.ugmtc.org/programs/food-shelter/"
 
 
 def test_seed_covers_both_cities_and_multiple_categories(seed):
@@ -97,3 +97,30 @@ def test_seed_expires_without_reverification(seed, checked_at):
     assert sorted(report["blockers"]["stale_ids"]) == sorted(item.id for item in seed)
     with pytest.raises(ValueError, match="stale or future-dated"):
         directory_snapshot(seed, checked_at + timedelta(days=2))
+
+
+@pytest.mark.parametrize('identity', [
+    'higher-ground-minneapolis', 'higher-ground-saint-paul',
+    'mary-frey-opportunity-center', 'people-serving-people',
+    'saint-paul-opportunity-center', 'sharing-and-caring-hands',
+    'simpson-community-shelter', 'union-gospel-bethel-hotel',
+])
+def test_seed_provider_links_open_the_reviewed_service_page(seed, identity):
+    # Current curated seed policy, not a blanket rule for imported snapshots.
+    # The displayed provider link should not send users back to a generic
+    # homepage when a reviewed service/location page is already known.
+    record = next(item for item in seed if item.id == identity)
+    assert record.website == record.source_url
+
+
+def test_people_serving_people_identifies_the_actual_shelter_location(seed):
+    record = next(item for item in seed if item.id == 'people-serving-people')
+    assert record.name == 'People Serving People - Possibility Place'
+    assert record.address == '614 3rd Street South, Minneapolis, MN 55415'
+    assert record.phone == '(612) 332-4500'
+
+
+def test_reviewed_service_links_survive_export(seed, checked_at):
+    exported = {item['id']: item for item in directory_snapshot(seed, checked_at)['resources']}
+    for item in seed:
+        assert exported[item.id]['website'] == str(item.source_url)
