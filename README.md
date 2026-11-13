@@ -281,6 +281,14 @@ checks pass. A broken chain, incoherent timeline or supplied snapshot mismatch
 exits 1, so shell and CI callers can rely on the exit status. A chain-only
 check with no snapshot does not claim to verify a snapshot anchor.
 
+`python -m app.audit_directory reviewed-resources.json --check` is an opt-in
+shell gate: it prints the full JSON report and exits 1 for empty, sample, stale
+or future-dated data, or 0 when export validation passes. Missing contact routes,
+missing hours and out-of-area warnings remain advisory. Without `--check`, the
+audit keeps its report-only success exit even when blockers exist. Malformed
+input fails rather than producing a success report. Neither mode writes files,
+verifies a provider check or authorizes publication.
+
 For a prioritized, read-only operator worklist, run
 `python -m app.reverify reviewed-resources.json --due --within-hours 6 --json`.
 The report groups counts by reason/action and orders future-date problems first,
