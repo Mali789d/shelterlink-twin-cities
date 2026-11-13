@@ -290,7 +290,7 @@ seconds remaining. Future dates have no valid deadline and require timestamp
 correction, not backward re-verification; samples require replacement. The
 four-column default `--due` output also uses `correct_timestamp` for future-dated
 real records. These are review instructions, never evidence of provider checks,
-live availability or permission to publish. The command does not write dates.
+live availability or permission to publish. The command does not write dates. Re-verification compares actual UTC instants, including the repeated hour when clocks fall back: an earlier instant is refused even if its local clock reads later, and a later check is allowed even if its local clock reads earlier. This records only the named checks, not proof that they happened.
 
 The verified seed carries its own history at `data/verified_resources.history.jsonl`: every change to `data/verified_resources.json` must be recorded with an append in the same commit, and the test suite fails when the seed drifts from its latest recorded review. Record a source re-check with one command - `python -m app.seed_review data/verified_resources.json --history data/verified_resources.history.jsonl --checked <id> --note "what was re-checked"` - which validates everything before writing, re-dates only the named records, appends the anchoring record, and restores the original snapshot if the history write fails, so the tree never sits half-updated.
 

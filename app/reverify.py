@@ -130,7 +130,10 @@ def reverify(resources: list[Resource], checked_ids: set[str], at: datetime) -> 
             continue
         if item.is_sample:
             raise ValueError(f"sample record {item.id} is not verifiable; replace it with a real record")
-        if at < item.verified_at:
+        # A repeated local hour has two instants. Same-zone datetime comparison
+        # ignores fold, so use UTC to reject actual backwards moves and permit
+        # a later check whose local clock reads earlier after fall-back.
+        if at.astimezone(timezone.utc) < item.verified_at.astimezone(timezone.utc):
             raise ValueError(f"re-verification of {item.id} would move verified_at backwards")
         updated.append(item.model_copy(update={"verified_at": at}))
     return updated
