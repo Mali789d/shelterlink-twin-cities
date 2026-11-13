@@ -473,3 +473,30 @@ expiration rules, and a human correction path before any public launch.
 - [ ] Build an outreach-worker dashboard
 - [x] Add Spanish and Somali response templates
 - [ ] Add Hmong response templates and community language review
+
+# Curated seed source review
+
+Reviewed November 13, 2026. This is a local-test directory, not a launched
+referral service. Source-page checks establish published service/contact facts,
+not available beds, walk-in eligibility, intake acceptance or a live response.
+The seed retains empty hours and unknown availability. Its 24-hour freshness
+gate still applies. Coordinates were not newly geocoded in this review.
+
+Displayed provider links now use the reviewed service/location page instead of
+a generic homepage where one is known. People Serving People's record names
+Possibility Place, the actual shelter at the recorded address.
+
+| Record | Official source and contact scope |
+| --- | --- |
+| Higher Ground Minneapolis | [Provider page](https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-minneapolis-shelter/): 165 Glenwood Avenue North; (612) 204-8200 is the Hennepin Shelter Hotline, not a direct bed-availability line. |
+| Higher Ground Saint Paul | [Provider page](https://cctwincities.org/services-and-locations/adult-emergency-shelters/higher-ground-saint-paul-shelter/): 435 Dorothy Day Place; (651) 266-1050 is Ramsey County's Shelter Entry & Diversion Team. |
+| Mary F. Frey Opportunity Center | [Provider page](https://cctwincities.org/services-and-locations/adult-emergency-shelters/mary-f-frey-minneapolis-opportunity-center/): 740 East 17th Street; (612) 204-8300; showers listed. Center opening hours are not asserted as shower service hours. |
+| People Serving People - Possibility Place | [Locations page](https://www.peopleservingpeople.org/our-locations/): emergency shelter at 614 South 3rd Street; (612) 332-4500. Same street as the seed's normalized 614 3rd Street South. |
+| Saint Paul Opportunity Center | [Provider page](https://cctwincities.org/services-and-locations/adult-emergency-shelters/richard-m-schulze-family-foundation-saint-paul-opportunity-center/): 422 Dorothy Day Place; (651) 404-6407; three hot meals per day, not meal-specific serving times. |
+| Sharing & Caring Hands | [Provider homepage](https://sharingandcaringhands.org/): 525 N 7th Street; (612) 338-4640; meal service described. Homepage retained because it is the reviewed source. |
+| Simpson Community Shelter & Apartments | [Shelter page](https://simpsonhousing.org/simpson-community-shelter-apartments/): current building on the original 2740 1st Avenue South site; 2026 opening narrative. (612) 874-8683 is the published general office contact, not verified intake. Occupancy narrative is not current bed availability. |
+| Bethel Hotel Men's Shelter | [Food and shelter page](https://www.ugmtc.org/programs/food-shelter/): emergency shelter at 435 University Ave E; intake described as 24/7, not a guaranteed bed. [Contact page](https://www.ugmtc.org/who-we-are/contact/): (651) 292-1721 is Men's Programs. |
+
+No fee, eligibility or intake promise is added. Higher Ground Minneapolis also
+lists a paid Pay-for-Stay option alongside no-fee beds; the seed does not claim
+that every option is free. Call the listed route for current conditions.
