@@ -63,9 +63,15 @@ def audit_resources(resources, at: datetime) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Audit directory blockers without writing or publishing")
     parser.add_argument("source", type=Path)
+    parser.add_argument("--check", action="store_true",
+                        help="exit 1 when export blockers exist; still print the complete JSON report")
     args = parser.parse_args()
-    print(json.dumps(audit_resources(load_resources(args.source), datetime.now(timezone.utc)),
-                     ensure_ascii=False, indent=2))
+    report = audit_resources(load_resources(args.source), datetime.now(timezone.utc))
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    # Opt-in shell gate, not publication approval. Advisory warnings stay
+    # advisory, and report-only callers retain the existing success exit.
+    if args.check and not report["export_validation_passes"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

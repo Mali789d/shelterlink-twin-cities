@@ -143,3 +143,73 @@ def test_every_covered_zip_centroid_passes_without_area_warning():
 def test_empty_directory_has_empty_area_warning():
     assert audit_resources([], AT)["warnings"] == {
         "walk_in_only_ids": [], "no_hours_ids": [], "out_of_area_ids": []}
+
+
+def _run_audit(tmp_path, records, *flags):
+    source = tmp_path / 'resources.json'
+    source.write_text(json.dumps([item.model_dump(mode='json') for item in records]))
+    before = source.read_bytes()
+    result = subprocess.run([sys.executable, '-m', 'app.audit_directory',
+                             str(source), *flags], capture_output=True, text=True, timeout=10)
+    assert source.read_bytes() == before
+    assert list(tmp_path.iterdir()) == [source]
+    return result
+
+
+@pytest.mark.parametrize('case', ['empty', 'sample', 'stale', 'future', 'combined'])
+def test_check_cli_fails_for_each_export_blocker_with_complete_json(tmp_path, case):
+    now = datetime.now(timezone.utc)
+    cases = {
+        'empty': [],
+        'sample': [resource(is_sample=True, verified_at=now)],
+        'stale': [resource(verified_at=now - timedelta(hours=25))],
+        'future': [resource(verified_at=now + timedelta(hours=1))],
+        'combined': [resource('sample', is_sample=True, verified_at=now),
+                     resource('stale', verified_at=now - timedelta(hours=25)),
+                     resource('future', verified_at=now + timedelta(hours=1))],
+    }
+    result = _run_audit(tmp_path, cases[case], '--check')
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report['export_validation_passes'] is False
+    assert report['provider_verification_confirmed'] is False
+    assert not result.stderr
+    assert report['blockers']['empty'] == (case == 'empty')
+    if case == 'combined':
+        assert report['blockers'] == {'empty': False, 'sample_ids': ['sample'],
+                                      'stale_ids': ['stale'], 'future_ids': ['future']}
+    for private in ('address', 'phone', 'website', '612'):
+        assert private not in result.stdout
+
+
+@pytest.mark.parametrize('warnings_only', [False, True])
+def test_check_cli_succeeds_for_valid_data_even_with_advisory_warnings(tmp_path, warnings_only):
+    changes = {'verified_at': datetime.now(timezone.utc)}
+    if warnings_only:
+        changes.update(phone=None, website=None, hours={}, latitude=46.7867, longitude=-92.1005)
+    result = _run_audit(tmp_path, [resource(**changes)], '--check')
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report['export_validation_passes'] is True
+    assert report['provider_verification_confirmed'] is False
+    if warnings_only:
+        assert all(report['warnings'].values())
+    assert not result.stderr
+
+
+def test_report_only_cli_preserves_success_exit_for_blocked_data(tmp_path):
+    result = _run_audit(tmp_path, [resource(is_sample=True)])
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['export_validation_passes'] is False
+
+
+def test_check_cli_malformed_data_fails_without_success_report_or_writes(tmp_path):
+    source = tmp_path / 'resources.json'
+    source.write_text('[{"id": "missing-fields"}]')
+    before = source.read_bytes()
+    result = subprocess.run([sys.executable, '-m', 'app.audit_directory', str(source), '--check'],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    assert not result.stdout
+    assert source.read_bytes() == before
+    assert list(tmp_path.iterdir()) == [source]
