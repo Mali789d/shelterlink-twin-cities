@@ -288,3 +288,37 @@ def test_due_tsv_cli_future_action_is_not_reverify(tmp_path, capsys, monkeypatch
     main()
     assert capsys.readouterr().out.strip().split('\t')[-1] == 'correct_timestamp'
     assert snapshot.read_bytes() == before
+
+
+@pytest.mark.parametrize('zone_name,month,day', [
+    ('America/Chicago', 11, 1), ('America/New_York', 11, 1),
+    ('Europe/London', 10, 25),
+])
+@pytest.mark.parametrize('old_minute,old_fold,new_minute,new_fold,allowed', [
+    (30, 1, 30, 0, False),  # identical wall time, one hour backwards
+    (15, 1, 45, 0, False),  # later wall time, thirty minutes backwards
+    (30, 0, 30, 1, True),   # identical wall time, one hour forwards
+    (45, 0, 15, 1, True),   # earlier wall time, thirty minutes forwards
+])
+def test_reverify_compares_instants_during_repeated_hour(
+        zone_name, month, day, old_minute, old_fold, new_minute, new_fold, allowed):
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo(zone_name)
+    old = datetime(2026, month, day, 1, old_minute, tzinfo=zone, fold=old_fold)
+    new = datetime(2026, month, day, 1, new_minute, tzinfo=zone, fold=new_fold)
+    # Keep the named timezone in direct calls, rather than serializing it to a
+    # fixed offset. Python compares same-zone datetimes by wall time, not fold.
+    record = _record('checked').model_copy(update={'verified_at': old})
+    untouched = _record('untouched', AT - timedelta(days=40))
+    before = [item.model_dump_json() for item in (record, untouched)]
+    assert (new.astimezone(timezone.utc) >= old.astimezone(timezone.utc)) == allowed
+    if allowed:
+        updated = reverify([record, untouched], {'checked'}, new)
+        assert updated[0].verified_at.astimezone(timezone.utc) == new.astimezone(timezone.utc)
+        assert updated[0].verified_at.fold == new_fold
+        assert updated[0].model_dump(exclude={'verified_at'}) == record.model_dump(exclude={'verified_at'})
+        assert updated[1] == untouched
+    else:
+        with pytest.raises(ValueError, match='backwards'):
+            reverify([record, untouched], {'checked'}, new)
+    assert [item.model_dump_json() for item in (record, untouched)] == before
