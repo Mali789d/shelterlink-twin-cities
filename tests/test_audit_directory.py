@@ -96,7 +96,7 @@ def test_reachability_and_hours_warnings_sorted_ids_only():
     report = audit_resources(data, AT)
     assert report["warnings"] == {"walk_in_only_ids": ["b-nocontact-nohours", "z-walkin"],
                                   "no_hours_ids": ["a-nohours", "b-nocontact-nohours"],
-                                  "out_of_area_ids": []}
+                                  "out_of_area_ids": [], "expiring_soon_ids": []}
     # Warnings never gate export validation.
     assert report["export_validation_passes"]
     # Warning keys and values must not leak contact fields into the report.
@@ -111,13 +111,13 @@ def test_phone_or_website_alone_is_reachable_and_hours_present_is_no_warning():
             resource("c", phone=None, website=None, hours={1: [("09:00", "17:00")]})]
     report = audit_resources(data, AT)
     assert report["warnings"] == {"walk_in_only_ids": ["c"], "no_hours_ids": [],
-                                  "out_of_area_ids": []}
+                                  "out_of_area_ids": [], "expiring_soon_ids": []}
 
 
 def test_empty_directory_has_no_warnings():
     report = audit_resources([], AT)
     assert report["warnings"] == {"walk_in_only_ids": [], "no_hours_ids": [],
-                                  "out_of_area_ids": []}
+                                  "out_of_area_ids": [], "expiring_soon_ids": []}
     assert not report["export_validation_passes"]
 
 
@@ -142,7 +142,8 @@ def test_every_covered_zip_centroid_passes_without_area_warning():
 
 def test_empty_directory_has_empty_area_warning():
     assert audit_resources([], AT)["warnings"] == {
-        "walk_in_only_ids": [], "no_hours_ids": [], "out_of_area_ids": []}
+        "walk_in_only_ids": [], "no_hours_ids": [], "out_of_area_ids": [],
+        "expiring_soon_ids": []}
 
 
 def _run_audit(tmp_path, records, *flags):
@@ -186,7 +187,10 @@ def test_check_cli_fails_for_each_export_blocker_with_complete_json(tmp_path, ca
 def test_check_cli_succeeds_for_valid_data_even_with_advisory_warnings(tmp_path, warnings_only):
     changes = {'verified_at': datetime.now(timezone.utc)}
     if warnings_only:
-        changes.update(phone=None, website=None, hours={}, latitude=46.7867, longitude=-92.1005)
+        # Three hours from the freshness deadline, so every advisory warning fires.
+        changes.update(phone=None, website=None, hours={}, latitude=46.7867,
+                       longitude=-92.1005,
+                       verified_at=datetime.now(timezone.utc) - timedelta(hours=21))
     result = _run_audit(tmp_path, [resource(**changes)], '--check')
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
@@ -213,3 +217,39 @@ def test_check_cli_malformed_data_fails_without_success_report_or_writes(tmp_pat
     assert not result.stdout
     assert source.read_bytes() == before
     assert list(tmp_path.iterdir()) == [source]
+
+
+@pytest.mark.parametrize("seconds_until_deadline,expected", [
+    (6 * 3600 + 1, False), (6 * 3600, True), (3600, True), (0, True), (-1, False)])
+def test_expiring_soon_warning_tracks_the_freshness_deadline(seconds_until_deadline, expected):
+    verified = AT - timedelta(hours=24) + timedelta(seconds=seconds_until_deadline)
+    report = audit_resources([resource(verified_at=verified)], AT)
+    assert (report["warnings"]["expiring_soon_ids"] == ["a"]) is expected
+    if seconds_until_deadline >= 0:
+        # Advance notice never gates: the record is still current at the deadline.
+        assert report["export_validation_passes"] is True
+        assert report["blockers"]["stale_ids"] == []
+    else:
+        # Past the deadline the blocker, not the warning, says what happened.
+        assert report["blockers"]["stale_ids"] == ["a"]
+
+
+def test_future_dated_records_warn_as_blockers_not_expiring_soon():
+    report = audit_resources([resource(verified_at=AT + timedelta(hours=1))], AT)
+    assert report["blockers"]["future_ids"] == ["a"]
+    assert report["warnings"]["expiring_soon_ids"] == []
+
+
+def test_expiring_soon_ids_sorted_without_contact_data():
+    soon = AT - timedelta(hours=20)  # freshness deadline four hours away
+    report = audit_resources([resource("z", verified_at=soon),
+                              resource("b", verified_at=soon),
+                              resource("fresh")], AT)
+    assert report["warnings"]["expiring_soon_ids"] == ["b", "z"]
+    assert report["export_validation_passes"] is True
+    for private in ("phone", "website", "address"):
+        assert private not in json.dumps(report)
+
+
+def test_report_states_the_expiring_soon_window():
+    assert audit_resources([], AT)["expiring_soon_window_seconds"] == 6 * 3600
