@@ -126,21 +126,5 @@
     "source_url": "https://www.ugmtc.org/programs/food-shelter/",
     "verified_at": "2026-11-14T20:59:34.146702Z",
     "is_sample": false
-  },
-  {
-    "id": "listening-house",
-    "name": "Listening House of St. Paul",
-    "category": "warming",
-    "address": "421 East 7th Street, Saint Paul, MN 55101",
-    "latitude": 44.9537022,
-    "longitude": -93.0833501,
-    "phone": "(651) 227-5911",
-    "website": "https://www.listeninghouse.org/contact",
-    "hours": {},
-    "availability": "unknown",
-    "source_name": "Listening House of St. Paul",
-    "source_url": "https://www.listeninghouse.org/contact",
-    "verified_at": "2026-11-14T20:59:34.146702Z",
-    "is_sample": false
   }
 ]
