@@ -284,7 +284,11 @@ check with no snapshot does not claim to verify a snapshot anchor.
 `python -m app.audit_directory reviewed-resources.json --check` is an opt-in
 shell gate: it prints the full JSON report and exits 1 for empty, sample, stale
 or future-dated data, or 0 when export validation passes. Missing contact routes,
-missing hours and out-of-area warnings remain advisory. Without `--check`, the
+missing hours and out-of-area listings remain advisory warnings, as are records
+within six hours of their freshness deadline: the report lists their IDs under
+`warnings.expiring_soon_ids` (the window as `expiring_soon_window_seconds`) so an
+operator can re-check sources before a blocker lands, without changing the exit
+status. Without `--check`, the
 audit keeps its report-only success exit even when blockers exist. Malformed
 input fails rather than producing a success report. Neither mode writes files,
 verifies a provider check or authorizes publication.
