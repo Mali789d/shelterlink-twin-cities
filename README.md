@@ -492,11 +492,13 @@ expiration rules, and a human correction path before any public launch.
 
 # Curated seed source review
 
-Reviewed November 13, 2026. This is a local-test directory, not a launched
+Reviewed November 14, 2026. This is a local-test directory, not a launched
 referral service. Source-page checks establish published service/contact facts,
 not available beds, walk-in eligibility, intake acceptance or a live response.
 The seed retains empty hours and unknown availability. Its 24-hour freshness
-gate still applies. Coordinates were not newly geocoded in this review.
+gate still applies. Existing coordinates were not newly geocoded; the new
+Listening House record's coordinates were geocoded to its address in this
+review.
 
 Displayed provider links now use the reviewed service/location page instead of
 a generic homepage where one is known. People Serving People's record names
@@ -512,6 +514,7 @@ Possibility Place, the actual shelter at the recorded address.
 | Sharing & Caring Hands | [Provider homepage](https://sharingandcaringhands.org/): 525 N 7th Street; (612) 338-4640; meal service described. Homepage retained because it is the reviewed source. |
 | Simpson Community Shelter & Apartments | [Shelter page](https://simpsonhousing.org/simpson-community-shelter-apartments/): current building on the original 2740 1st Avenue South site; 2026 opening narrative. (612) 874-8683 is the published general office contact, not verified intake. Occupancy narrative is not current bed availability. |
 | Bethel Hotel Men's Shelter | [Food and shelter page](https://www.ugmtc.org/programs/food-shelter/): emergency shelter at 435 University Ave E; intake described as 24/7, not a guaranteed bed. [Contact page](https://www.ugmtc.org/who-we-are/contact/): (651) 292-1721 is Men's Programs. |
+| Listening House of St. Paul | [Contact page](https://www.listeninghouse.org/contact) (displayed link): 421 East 7th Street; (651) 227-5911 is the published front-desk line; location and current hours shown. [Homepage](https://www.listeninghouse.org/): daytime shelter for people experiencing homelessness. Published daytime hours are seasonal, so the seed records no service hours. Coordinates geocoded to the address November 14, 2026. |
 
 No fee, eligibility or intake promise is added. Higher Ground Minneapolis also
 lists a paid Pay-for-Stay option alongside no-fee beds; the seed does not claim
