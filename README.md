@@ -329,6 +329,10 @@ list the same site twice under different formatting; merge reports the look-alik
 candidate introduces, and this audits a whole snapshot with the same rules, flagging
 pairs sharing a normalized phone, a punctuation-insensitive name, or coordinates
 inside one building.
+Name matching preserves Unicode letters, numbers, accents and script marks,
+normalizes equivalent composed/decomposed text and case, and ignores spacing
+and punctuation. Empty or punctuation/mark-only keys never match. It does not
+translate, transliterate or equate cross-script look-alikes.
 The flags are deterministic review hints only - they never merge records, never pick a
 winner, catch formatting drift rather than naming variants, and report record IDs and
 rules only, so no contact details leave the snapshot.

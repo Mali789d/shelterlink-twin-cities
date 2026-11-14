@@ -10,6 +10,7 @@ record IDs and the rules that fired - no contact details leave the snapshot.
 import argparse
 import json
 import re
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -33,8 +34,17 @@ def normalized_phone(phone: str | None) -> str | None:
 
 
 def normalized_name(name: str) -> str:
-    """Lowercase alphanumerics only - catches punctuation and spacing drift."""
-    return re.sub(r"[^a-z0-9]+", "", name.lower())
+    """Unicode case/encoding equivalence, preserving letters, numbers and marks.
+
+    Strip punctuation/spacing, not whole scripts or meaningful accents/vowels.
+    No transliteration, compatibility folding or cross-script look-alike matching.
+    A punctuation/mark-only name has no usable key and must not match another.
+    """
+    folded = unicodedata.normalize("NFC", name.casefold())
+    if not any(char.isalnum() for char in folded):
+        return ""
+    return "".join(char for char in folded
+                   if char.isalnum() or unicodedata.category(char).startswith("M"))
 
 
 def normalized_website(website) -> str | None:
@@ -63,7 +73,8 @@ def find_possible_duplicates(resources) -> dict:
                                        normalized_phone(right.phone))
             if left_phone and left_phone == right_phone:
                 rules.append("same_phone")
-            if normalized_name(left.name) == normalized_name(right.name):
+            left_name, right_name = normalized_name(left.name), normalized_name(right.name)
+            if left_name and left_name == right_name:
                 rules.append("same_name")
             left_site, right_site = (normalized_website(left.website),
                                      normalized_website(right.website))

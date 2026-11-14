@@ -134,3 +134,61 @@ def test_website_rule_combines_with_other_rules_in_order():
     rules = find_possible_duplicates([left, right])["flags"][0]["rules"]
     # Same default coordinates mean same_location fires too, listed last.
     assert rules == ["same_phone", "same_name", "same_website", "same_location"]
+
+
+import pytest
+
+
+@pytest.mark.parametrize('left,right,match', [
+    ('مأوى', 'مركز', False),
+    ('庇护所', '食堂', False),
+    ('مأوى', '---', False),
+    ('!!!', '---', False),
+    ('\u0301', '\u0300', False),
+    ('हिंदी', 'हंदी', False),  # vowel marks must not be erased
+    ('Café', 'Cafe', False),  # accents are meaningful, not transliteration
+    ('ÉCOLE SOLIDAIRE', 'école-solidaire', True),
+    ('Café Espoir', 'Cafe\u0301 Espoir!', True),
+    ('Straße Hilfe', 'STRASSE HILFE', True),
+    ('مأوى النور', 'مأوى-النور', True),
+    ('希望之家', '希望 之家!', True),
+])
+def test_unicode_name_matching_preserves_meaning_and_never_matches_empty(left, right, match):
+    records = [resource('a', left), resource('b', right, latitude=44.95, longitude=-93.09)]
+    before = [item.model_dump_json() for item in records]
+    expected = [{'ids': ['a', 'b'], 'rules': ['same_name']}] if match else []
+    report = find_possible_duplicates(records)
+    assert report['flags'] == expected
+    assert find_possible_duplicates(reversed(records)) == report
+    assert [item.model_dump_json() for item in records] == before
+    assert set(report) == {'notice', 'resource_count', 'flag_count', 'flags'}
+    assert report['flag_count'] == int(match)
+
+
+@pytest.mark.parametrize('left,right,expected', [
+    ('مأوى', 'مركز', []),
+    ('Café Espoir', 'Cafe\u0301 Espoir!', [{'ids': ['a', 'b'], 'rules': ['same_name']}]),
+])
+def test_unicode_name_rules_reach_merge_without_rewriting_records(left, right, expected):
+    from app.merge import merge_resources
+    base = [resource('a', left)]
+    candidate = [resource('b', right, latitude=44.95, longitude=-93.09)]
+    report = merge_resources(base, candidate)
+    assert report['possible_duplicates'] == expected
+    assert report['resources'] == base + candidate
+    assert report['added'] == ['b']
+
+
+def test_unicode_cli_is_read_only_and_keeps_names_out_of_summary(tmp_path):
+    snapshot = tmp_path / 'resources.json'
+    records = [resource('a', 'École'), resource('b', 'école!', latitude=44.95, longitude=-93.09)]
+    snapshot.write_text(json.dumps([r.model_dump(mode='json') for r in records], ensure_ascii=False),
+                        encoding='utf-8')
+    before = snapshot.read_bytes()
+    result = subprocess.run([sys.executable, '-m', 'app.duplicates', str(snapshot)],
+                            capture_output=True, text=True, check=True, timeout=10)
+    report = json.loads(result.stdout)
+    assert report['flags'] == [{'ids': ['a', 'b'], 'rules': ['same_name']}]
+    assert 'cole' not in result.stdout and 'Example Ave' not in result.stdout
+    assert snapshot.read_bytes() == before
+    assert list(tmp_path.iterdir()) == [snapshot]
