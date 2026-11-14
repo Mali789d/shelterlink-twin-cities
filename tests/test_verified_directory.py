@@ -59,6 +59,29 @@ def test_bethel_hotel_record_matches_the_verified_source(seed):
     assert str(record.website) == "https://www.ugmtc.org/programs/food-shelter/"
 
 
+def test_listening_house_record_matches_the_verified_source(seed):
+    # Added 2026-11-14 against listeninghouse.org: 421 East 7th Street, Saint Paul;
+    # front desk (651) 227-5911 on the contact page; homepage describes a daytime
+    # shelter, which the warming category covers. Published daytime hours are
+    # seasonal, so hours stay empty per the seed policy above.
+    by_id = {item.id: item for item in seed}
+    record = by_id["listening-house"]
+    assert record.name == "Listening House of St. Paul"
+    assert record.category.value == "warming"
+    assert record.address == "421 East 7th Street, Saint Paul, MN 55101"
+    assert record.phone == "(651) 227-5911"
+    assert not record.hours and record.availability.value == "unknown"
+    assert str(record.source_url) == "https://www.listeninghouse.org/contact"
+    assert str(record.website) == "https://www.listeninghouse.org/contact"
+
+
+def test_seed_covers_every_supported_category(seed):
+    # All four categories carry at least one reviewed record: someone asking for
+    # any supported kind of help gets a real listing, not an empty shelf.
+    categories = {item.category.value for item in seed}
+    assert categories == {"shelter", "meal", "warming", "shower"}
+
+
 def test_seed_covers_both_cities_and_multiple_categories(seed):
     cities = {item.address.rsplit(", ", 2)[1] for item in seed}
     assert cities == {"Minneapolis", "Saint Paul"}
