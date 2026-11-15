@@ -113,11 +113,23 @@ displays hours, availability or open-now claims, which the export deliberately
 omits. `web/directory.json` is generated output and is git-ignored.
 
 Every export embeds `export_sha256`, a SHA-256 over the canonical form of the
-reviewed envelope - schema version, generation time and the exact record
-fields the page may show - and the page recomputes it before trusting any
-field: a corrupted or inconsistently edited export, including one whose
-`generated_at` was rolled forward to look fresh, fails closed instead of
-rendering half-reviewed data. It is a consistency check, not a signature - a host that
+reviewed envelope - schema version, generation time, the review anchor and
+the exact record fields the page may show - and the page recomputes it before
+trusting any field: a corrupted or inconsistently edited export, including one
+whose `generated_at` was rolled forward to look fresh, fails closed instead of
+rendering half-reviewed data.
+
+The review anchor, `review_sha256`, is the change-history digest of the full
+reviewed snapshot the export derives from (the same value
+`python -m app.history verify` anchors against). Because it sits inside the
+digested envelope, an export whose anchor was stripped or swapped for another
+snapshot's fails the page's integrity check like any edited record, and an
+operator can tie any served `directory.json` back to one recorded review in
+the history log. Passing `--history data/verified_resources.history.jsonl` to
+the exporter makes that tie a precondition: the export is refused, writing
+nothing, unless the log is intact and its latest record anchors this exact
+snapshot. The flag is opt-in; without it the anchor is still embedded and
+digested. It is a consistency check, not a signature - a host that
 can replace the file can recompute the digest. The canonical form is shared
 byte-for-byte between `app/export_directory.py` and `web/export-integrity.mjs`,
 pinned by common test vectors in both test suites. Numbers use their exact
