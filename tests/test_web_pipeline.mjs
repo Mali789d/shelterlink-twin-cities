@@ -16,6 +16,7 @@ function snapshot(time = at) {
     source_url: 'https://example.com/', verified_at: date,
     availability: 'available', open_now: true, hours: {0: [['00:00', '24:00']]},
   }]};
+  value.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   value.export_sha256 = exportDigest(value);
   return value;
 }
