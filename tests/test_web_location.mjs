@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {parseCoordinates} from '../web/location-input.mjs';
 import {exportDigest} from '../web/export-integrity.mjs';
 function signed(snapshot) {
+  snapshot.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   snapshot.export_sha256 = exportDigest(snapshot);
   return snapshot;
 }
