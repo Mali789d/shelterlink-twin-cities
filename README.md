@@ -128,8 +128,13 @@ operator can tie any served `directory.json` back to one recorded review in
 the history log. Passing `--history data/verified_resources.history.jsonl` to
 the exporter makes that tie a precondition: the export is refused, writing
 nothing, unless the log is intact and its latest record anchors this exact
-snapshot. The flag is opt-in; without it the anchor is still embedded and
-digested. It is a consistency check, not a signature - a host that
+snapshot. The exporter loads the source once, then anchors and exports that
+same in-memory snapshot, so a source edit during validation cannot slip new
+contents into the export. Output paths matching the source or supplied history
+(including relative, symbolic-link and hard-link aliases) are refused before
+writes. These checks prevent accidental overwrite; they are not filesystem
+locking or protection against a hostile process racing path changes. The flag
+is opt-in; without it the anchor is still embedded and digested. It is a consistency check, not a signature - a host that
 can replace the file can recompute the digest. The canonical form is shared
 byte-for-byte between `app/export_directory.py` and `web/export-integrity.mjs`,
 pinned by common test vectors in both test suites. Numbers use their exact

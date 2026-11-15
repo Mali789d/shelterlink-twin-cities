@@ -490,3 +490,9 @@ def test_verify_cli_missing_history_with_snapshot_fails_but_chain_only_is_empty(
     assert 'history is empty' in json.loads(anchored.stdout)['problems']
     assert _verify_cli(history).returncode == 0
     assert not history.exists()
+
+
+def test_verify_rejects_both_snapshot_path_and_resources(tmp_path):
+    with pytest.raises(ValueError, match='not both'):
+        verify_history(tmp_path / 'history.jsonl', snapshot_path=tmp_path / 'source.json',
+                       resources=[])

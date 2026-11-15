@@ -187,14 +187,19 @@ def append_record(history_path, snapshot_path, note, at=None) -> dict:
     return record
 
 
-def verify_history(history_path, snapshot_path=None, at=None) -> dict:
+def verify_history(history_path, snapshot_path=None, at=None, *, resources=None) -> dict:
     """Check chain integrity and, optionally, anchor the tail to a live snapshot.
+
+    ``resources`` anchors an already loaded snapshot without rereading a file;
+    it is mutually exclusive with ``snapshot_path``.
 
     ``at`` is the verification instant (defaults to now): a record dated after
     it claims a review that has not happened yet, so it is flagged like any
     other incoherence. Chain and timeline checks cannot prove authorship; a
     fully recomputed chain still needs the snapshot anchor and version control.
     """
+    if snapshot_path is not None and resources is not None:
+        raise ValueError("supply a snapshot path or resources, not both")
     if at is not None and (at.tzinfo is None or at.utcoffset() is None):
         raise ValueError("verification time must include a timezone")
     checked_at = (at or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -209,13 +214,19 @@ def verify_history(history_path, snapshot_path=None, at=None) -> dict:
         "problems": problems,
         "chain_ok": not problems,
     }
-    if snapshot_path is not None:
+    if snapshot_path is not None or resources is not None:
         if not records:
             result["chain_ok"] = False
             result["snapshot_matches_latest"] = False
             result["problems"].append("history is empty")
         else:
-            resources = load_resources(snapshot_path)
+            if snapshot_path is not None:
+                resources = load_resources(snapshot_path)
+            else:
+                # Match the path-based API: validate even copied models, and
+                # materialize iterators once before digest and count checks.
+                from .models import Resource
+                resources = [Resource.model_validate(item.model_dump()) for item in resources]
             digest = snapshot_digest(resources)
             count_matches = len(resources) == records[-1]["resource_count"]
             result["snapshot_matches_latest"] = digest == records[-1]["snapshot_sha256"]
