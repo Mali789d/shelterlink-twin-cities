@@ -293,6 +293,14 @@ audit keeps its report-only success exit even when blockers exist. Malformed
 input fails rather than producing a success report. Neither mode writes files,
 verifies a provider check or authorizes publication.
 
+Passing `--history path/to/history.jsonl` also verifies the append-only change
+history against the audited snapshot in the same read-only run: the report
+gains a `history` section (record count, chain and anchor status, and any
+problems by line), and with `--check` a broken chain, an incoherent timeline
+or a snapshot that has drifted from its latest recorded review exits 1
+alongside the export blockers. Without `--history` the audit reports and gates
+on snapshot data only, exactly as before.
+
 For a prioritized, read-only operator worklist, run
 `python -m app.reverify reviewed-resources.json --due --within-hours 6 --json`.
 The report groups counts by reason/action and orders future-date problems first,
