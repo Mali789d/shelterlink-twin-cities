@@ -6,6 +6,7 @@ import pytest
 from app.export_directory import (_canonical_export_json, directory_snapshot,
                                   export_digest, resources_digest)
 from app.data import load_resources
+from app.history import snapshot_digest
 from datetime import datetime, timezone
 
 NOW = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
@@ -28,9 +29,10 @@ VECTOR = [{"address": "123 Cañon Avenue, Suite 5", "category": "shelter",
 VECTOR_DIGEST = "9d3377bf26a3ef227379d2b5d97264de592304ce655456bdccceb6a6a718d602"
 
 # The envelope the page consults when deciding whether and what to render.
+REVIEW_ANCHOR = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 ENVELOPE = {"generated_at": "2026-11-10T12:00:00Z", "resources": VECTOR,
-            "schema_version": 1}
-ENVELOPE_DIGEST = "81fed64a29008713571c53acc92e9525380f0fe948afea3bd44e3b1afc75dbb7"
+            "review_sha256": REVIEW_ANCHOR, "schema_version": 1}
+ENVELOPE_DIGEST = "fd6d6c48202b2a1d14d7212630a92f0e8f3466bbd93016ea82e5ef7562b7c18d"
 
 
 def test_shared_record_vector_matches_the_web_reader():
@@ -85,9 +87,28 @@ def test_digest_refuses_records_missing_a_reviewed_field():
 
 
 def test_digest_refuses_an_envelope_missing_a_reviewed_field():
-    for key in ("generated_at", "resources", "schema_version"):
+    for key in ("generated_at", "resources", "review_sha256", "schema_version"):
         with pytest.raises(ValueError, match="envelope field"):
             export_digest({k: v for k, v in ENVELOPE.items() if k != key})
+
+
+def test_envelope_digest_covers_the_review_anchor():
+    swapped = dict(ENVELOPE, review_sha256="a" * 64)
+    assert export_digest(swapped) != ENVELOPE_DIGEST
+
+
+@pytest.mark.parametrize("anchor", ["not-a-digest", "A" * 64, 42, None])
+def test_envelope_digest_refuses_a_malformed_review_anchor(anchor):
+    with pytest.raises(ValueError, match="review anchor"):
+        export_digest(dict(ENVELOPE, review_sha256=anchor))
+
+
+def test_export_embeds_the_reviewed_snapshot_digest():
+    item = load_resources()[0].model_copy(update={"is_sample": False, "verified_at": NOW})
+    snapshot = directory_snapshot([item], NOW)
+    # The anchor is the history module's digest of the full reviewed snapshot,
+    # so app.history verify ties the export back to the recorded review log.
+    assert snapshot["review_sha256"] == snapshot_digest([item])
 
 
 def test_canonical_form_uses_exact_binary64_numbers_and_utf8_strings():
