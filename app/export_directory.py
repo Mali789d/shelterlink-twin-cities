@@ -155,20 +155,29 @@ def export_digest(snapshot) -> str:
 
 def export_file(source: Path, output: Path, history: Path | None = None) -> None:
     source, output = Path(source), Path(output)
-    # An export omits operator-only fields. Never replace its own source snapshot,
-    # even through relative paths, symlinks or an existing hard-link alias.
-    if source.resolve() == output.resolve() or (output.exists() and source.samefile(output)):
-        raise ValueError("export output must not replace the source snapshot")
+    history = Path(history) if history is not None else None
+
+    def protect_inputs():
+        # Reject direct paths, relative aliases, symlinks and hard links.
+        # Check before loading and again before replace in case normal local
+        # edits changed an alias while validation/serialization ran.
+        for protected, label in ((source, "source snapshot"), (history, "change history")):
+            if protected is not None and (protected.resolve() == output.resolve()
+                    or (output.exists() and protected.exists() and protected.samefile(output))):
+                raise ValueError("export output must not replace the " + label)
+
+    protect_inputs()
+    # One in-memory snapshot is both anchored and exported. A concurrent
+    # source edit cannot slip unreviewed contents into a second file read.
+    resources = load_resources(source)
+    now = datetime.now(timezone.utc)
     if history is not None:
-        # Opt-in provenance gate: the recorded review log must be intact and
-        # anchored to this exact snapshot, so an export never outruns its
-        # recorded review. Read-only; a refusal writes nothing.
-        verified = verify_history(Path(history), snapshot_path=source)
+        verified = verify_history(history, resources=resources, at=now)
         if not (verified["chain_ok"] and verified["snapshot_matches_latest"]):
             raise ValueError(
                 "change history does not anchor this snapshot: "
                 + "; ".join(verified["problems"] or ["snapshot is not the recorded review"]))
-    snapshot = directory_snapshot(load_resources(source), datetime.now(timezone.utc))
+    snapshot = directory_snapshot(resources, now)
     text = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
     # The browser reader enforces the same byte cap. Pretty-printing can expand
     # a valid compact source, so validate serialized UTF-8 bytes before writes.
@@ -180,6 +189,7 @@ def export_file(source: Path, output: Path, history: Path | None = None) -> None
                                          delete=False) as file:
             temporary = Path(file.name)
             file.write(text)
+        protect_inputs()
         os.replace(temporary, output)
     finally:
         if temporary is not None:
