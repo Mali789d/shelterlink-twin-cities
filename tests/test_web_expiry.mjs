@@ -11,6 +11,7 @@ function snapshot(verified = now, generated = now) {
     latitude: 0, longitude: 0, phone: null, website: null, source_name: 'Test fixture',
     source_url: 'https://example.com/', verified_at: new Date(verified).toISOString(),
   }]};
+  value.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   value.export_sha256 = exportDigest(value);
   return value;
 }
