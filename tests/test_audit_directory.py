@@ -9,6 +9,7 @@ import pytest
 from app.audit_directory import audit_resources
 from app.data import load_resources
 from app.export_directory import directory_snapshot
+from app.history import append_record
 
 AT = datetime(2026, 10, 12, 12, tzinfo=timezone.utc)
 
@@ -253,3 +254,120 @@ def test_expiring_soon_ids_sorted_without_contact_data():
 
 def test_report_states_the_expiring_soon_window():
     assert audit_resources([], AT)["expiring_soon_window_seconds"] == 6 * 3600
+
+
+def _write_source(tmp_path, records):
+    source = tmp_path / 'resources.json'
+    source.write_text(json.dumps([item.model_dump(mode='json') for item in records]))
+    return source
+
+
+def _append(history_path, source, note, at):
+    append_record(history_path, source, note, at=at)
+
+
+def _run_audit_history(tmp_path, *flags):
+    source = tmp_path / 'resources.json'
+    history = tmp_path / 'history.jsonl'
+    before_source = source.read_bytes()
+    before_history = history.read_bytes() if history.exists() else None
+    result = subprocess.run([sys.executable, '-m', 'app.audit_directory',
+                             str(source), *flags], capture_output=True, text=True, timeout=10)
+    # The audit is read-only even when it verifies history.
+    assert source.read_bytes() == before_source
+    if before_history is None:
+        assert not history.exists()
+    else:
+        assert history.read_bytes() == before_history
+    expected = {source, history} if history.exists() else {source}
+    assert set(tmp_path.iterdir()) == expected
+    return result
+
+
+def test_history_gate_passes_when_chain_and_anchor_match(tmp_path):
+    source = _write_source(tmp_path, [resource(verified_at=datetime.now(timezone.utc))])
+    history = tmp_path / 'history.jsonl'
+    _append(history, source, 'initial review', at=AT)
+    result = _run_audit_history(tmp_path, '--history', str(history), '--check')
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report['history'] == {'record_count': 1, 'chain_ok': True,
+                                 'snapshot_matches_latest': True, 'problems': []}
+    assert report['export_validation_passes'] is True
+    assert not result.stderr
+
+
+def test_history_gate_fails_when_an_earlier_record_is_rewritten(tmp_path):
+    first = _write_source(tmp_path, [resource('one', verified_at=datetime.now(timezone.utc))])
+    history = tmp_path / 'history.jsonl'
+    _append(history, first, 'first review', at=AT)
+    _write_source(tmp_path, [resource('two', verified_at=datetime.now(timezone.utc))])
+    _append(history, tmp_path / 'resources.json', 'second review',
+            at=AT + timedelta(minutes=1))
+    lines = history.read_text().splitlines()
+    rewritten = json.loads(lines[0])
+    rewritten['note'] = 'quietly altered after the fact'
+    lines[0] = json.dumps(rewritten)
+    history.write_text('\n'.join(lines) + '\n')
+    result = _run_audit_history(tmp_path, '--history', str(history), '--check')
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report['history']['chain_ok'] is False
+    assert report['history']['snapshot_matches_latest'] is True
+    assert any('line 2' in problem for problem in report['history']['problems'])
+    for private in ('quietly altered', 'second review'):
+        assert private not in json.dumps(report['history']['problems'])
+
+
+def test_history_gate_fails_when_the_snapshot_changed_without_a_record(tmp_path):
+    source = _write_source(tmp_path, [resource('kept', verified_at=datetime.now(timezone.utc))])
+    history = tmp_path / 'history.jsonl'
+    _append(history, source, 'reviewed state', at=AT)
+    # A later hand edit that skips its history record must not pass the gate.
+    _write_source(tmp_path, [resource('swapped', verified_at=datetime.now(timezone.utc))])
+    result = _run_audit_history(tmp_path, '--history', str(history), '--check')
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    # The chain itself is intact; the anchor to the audited snapshot is not.
+    assert report['history']['chain_ok'] is True
+    assert report['history']['snapshot_matches_latest'] is False
+
+
+def test_history_gate_fails_when_the_log_is_missing(tmp_path):
+    _write_source(tmp_path, [resource(verified_at=datetime.now(timezone.utc))])
+    result = _run_audit_history(tmp_path, '--history',
+                                str(tmp_path / 'history.jsonl'), '--check')
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report['history']['record_count'] == 0
+    assert report['history']['chain_ok'] is False
+    assert 'history is empty' in report['history']['problems']
+
+
+def test_history_report_only_keeps_success_exit_for_a_broken_chain(tmp_path):
+    source = _write_source(tmp_path, [resource(verified_at=datetime.now(timezone.utc))])
+    history = tmp_path / 'history.jsonl'
+    _append(history, source, 'reviewed state', at=AT)
+    _write_source(tmp_path, [resource('drifted', verified_at=datetime.now(timezone.utc))])
+    result = _run_audit_history(tmp_path, '--history', str(history))
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report['history']['snapshot_matches_latest'] is False
+
+
+def test_history_gate_still_fails_on_export_blockers_with_a_clean_chain(tmp_path):
+    source = _write_source(tmp_path, [resource(is_sample=True)])
+    history = tmp_path / 'history.jsonl'
+    _append(history, source, 'recorded sample snapshot', at=AT)
+    result = _run_audit_history(tmp_path, '--history', str(history), '--check')
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report['export_validation_passes'] is False
+    assert report['history']['chain_ok'] is True
+    assert report['history']['snapshot_matches_latest'] is True
+
+
+def test_audit_without_history_flag_reports_no_history_section(tmp_path):
+    result = _run_audit(tmp_path, [resource(verified_at=datetime.now(timezone.utc))], '--check')
+    assert result.returncode == 0, result.stderr
+    assert 'history' not in json.loads(result.stdout)

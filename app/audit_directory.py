@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .data import load_resources
 from .freshness import DEFAULT_MAX_AGE, Freshness, resource_freshness
+from .history import verify_history
 from .ingest import within_service_area
 from .models import Resource
 
@@ -79,12 +80,30 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("--check", action="store_true",
                         help="exit 1 when export blockers exist; still print the complete JSON report")
+    parser.add_argument("--history", type=Path, default=None,
+                        help="also verify this change-history log and anchor it to the audited "
+                             "snapshot; with --check a broken chain, incoherent timeline or "
+                             "unrecorded snapshot change exits 1")
     args = parser.parse_args()
-    report = audit_resources(load_resources(args.source), datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    report = audit_resources(load_resources(args.source), now)
+    history_ok = True
+    if args.history is not None:
+        # One shared instant for both sections, so a record cannot pass the
+        # audit clock and fail the history clock within a single run. The
+        # verifier is read-only and reports line numbers, never record content.
+        verified = verify_history(args.history, snapshot_path=args.source, at=now)
+        report["history"] = {"record_count": verified["record_count"],
+                             "chain_ok": verified["chain_ok"],
+                             "snapshot_matches_latest": verified["snapshot_matches_latest"],
+                             "problems": verified["problems"]}
+        # An intact chain whose tail does not match the audited snapshot means
+        # the snapshot changed without a recorded review; both gaps gate.
+        history_ok = verified["chain_ok"] and verified["snapshot_matches_latest"]
     print(json.dumps(report, ensure_ascii=False, indent=2))
     # Opt-in shell gate, not publication approval. Advisory warnings stay
     # advisory, and report-only callers retain the existing success exit.
-    if args.check and not report["export_validation_passes"]:
+    if args.check and not (report["export_validation_passes"] and history_ok):
         raise SystemExit(1)
 
 
