@@ -7,6 +7,7 @@ import pytest
 
 from app.data import load_resources
 from app.export_directory import directory_snapshot
+from app.history import append_record
 from app.models import Availability
 
 NOW = datetime(2026, 10, 5, 12, tzinfo=timezone.utc)
@@ -51,7 +52,17 @@ def test_export_rejects_unsafe_snapshots(kind):
 def test_export_order_is_deterministic():
     first = reviewed().model_copy(update={"id": "a"})
     second = reviewed().model_copy(update={"id": "z"})
-    assert directory_snapshot([second, first], NOW) == directory_snapshot([first, second], NOW)
+    reordered = directory_snapshot([second, first], NOW)
+    ordered = directory_snapshot([first, second], NOW)
+    # The rendered records are sorted and identical either way.
+    assert reordered["resources"] == ordered["resources"]
+    # The anchor is the reviewed snapshot's digest, and a snapshot's record
+    # order is meaningful to the change history, so only the anchor (and the
+    # envelope digest covering it) reflects the input order.
+    assert reordered["review_sha256"] != ordered["review_sha256"]
+    assert reordered["export_sha256"] != ordered["export_sha256"]
+    same = directory_snapshot([first, second], NOW)
+    assert same == ordered
 
 
 def test_failed_cli_export_preserves_existing_output(tmp_path):
@@ -100,3 +111,75 @@ def test_export_accepts_generator_and_normalizes_valid_copied_fields():
     result = directory_snapshot((value for value in [item]), NOW)
     assert result["resources"][0]["name"] == "Fixture only"
     assert item.name == " Fixture only "
+
+
+def _fresh_source(tmp_path):
+    data = reviewed().model_copy(update={"verified_at": datetime.now(timezone.utc)})
+    source = tmp_path / "input.json"
+    source.write_text(json.dumps([data.model_dump(mode="json")]))
+    return source
+
+
+def test_cli_history_gate_exports_an_anchored_snapshot(tmp_path):
+    source = _fresh_source(tmp_path)
+    history = tmp_path / "history.jsonl"
+    output = tmp_path / "directory.json"
+    append_record(history, source, "reviewed this morning",
+                  at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    process = subprocess.run([sys.executable, "-m", "app.export_directory", str(source),
+                              str(output), "--history", str(history)], capture_output=True)
+    assert process.returncode == 0
+    exported = json.loads(output.read_text())
+    assert exported["review_sha256"] == json.loads(
+        history.read_text().strip().splitlines()[-1])["snapshot_sha256"]
+
+
+def test_cli_history_gate_refuses_an_unrecorded_snapshot_change(tmp_path):
+    source = _fresh_source(tmp_path)
+    history = tmp_path / "history.jsonl"
+    output = tmp_path / "directory.json"
+    append_record(history, source, "reviewed state",
+                  at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    # A later edit that skips its history record must not reach an export.
+    drifted = reviewed().model_copy(update={"id": "drifted",
+                                            "verified_at": datetime.now(timezone.utc)})
+    source.write_text(json.dumps([drifted.model_dump(mode="json")]))
+    process = subprocess.run([sys.executable, "-m", "app.export_directory", str(source),
+                              str(output), "--history", str(history)], capture_output=True)
+    assert process.returncode != 0
+    assert not output.exists()
+
+
+def test_cli_history_gate_refuses_a_rewritten_log(tmp_path):
+    source = _fresh_source(tmp_path)
+    history = tmp_path / "history.jsonl"
+    output = tmp_path / "directory.json"
+    append_record(history, source, "first review",
+                  at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    lines = history.read_text().splitlines()
+    record = json.loads(lines[0])
+    record["snapshot_sha256"] = "0" * 64
+    history.write_text(json.dumps(record) + "\n")
+    process = subprocess.run([sys.executable, "-m", "app.export_directory", str(source),
+                              str(output), "--history", str(history)], capture_output=True)
+    assert process.returncode != 0
+    assert not output.exists()
+
+
+def test_cli_history_gate_refuses_a_missing_log(tmp_path):
+    source = _fresh_source(tmp_path)
+    output = tmp_path / "directory.json"
+    process = subprocess.run([sys.executable, "-m", "app.export_directory", str(source),
+                              str(output), "--history",
+                              str(tmp_path / "history.jsonl")], capture_output=True)
+    assert process.returncode != 0
+    assert not output.exists()
+
+
+def test_cli_export_without_history_still_succeeds(tmp_path):
+    source = _fresh_source(tmp_path)
+    output = tmp_path / "directory.json"
+    process = subprocess.run([sys.executable, "-m", "app.export_directory", str(source),
+                              str(output)], capture_output=True)
+    assert process.returncode == 0
+    assert json.loads(output.read_text())["review_sha256"]
