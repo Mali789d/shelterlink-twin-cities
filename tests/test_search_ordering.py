@@ -69,6 +69,7 @@ def test_web_nearby_ranks_the_same_fixture_identically():
                 "verified_at": timestamp, "is_sample": False}
 
     snapshot = {"schema_version": 1, "generated_at": timestamp,
+                "review_sha256": "a" * 64,
                 "resources": [entry("b-site"), entry("a-site")]}
     snapshot["export_sha256"] = export_digest(snapshot)
     script = (
