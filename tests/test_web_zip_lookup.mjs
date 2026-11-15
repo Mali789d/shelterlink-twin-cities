@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {CITY_CENTROIDS, NEIGHBORHOOD_CENTROIDS, ZIP_CENTROIDS, lookupPlace} from '../web/zip-lookup.mjs';
 import {exportDigest} from '../web/export-integrity.mjs';
 function signed(snapshot) {
+  snapshot.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   snapshot.export_sha256 = exportDigest(snapshot);
   return snapshot;
 }

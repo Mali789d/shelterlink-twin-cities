@@ -18,8 +18,10 @@ const VECTOR = [{address: '123 Cañon Avenue, Suite 5', category: 'shelter',
   source_url: 'https://example.com/a', verified_at: '2026-11-10T11:00:00Z',
   website: 'https://example.com'}];
 const VECTOR_DIGEST = '9d3377bf26a3ef227379d2b5d97264de592304ce655456bdccceb6a6a718d602';
-const ENVELOPE = {generated_at: '2026-11-10T12:00:00Z', resources: VECTOR, schema_version: 1};
-const ENVELOPE_DIGEST = '81fed64a29008713571c53acc92e9525380f0fe948afea3bd44e3b1afc75dbb7';
+const REVIEW_ANCHOR = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+const ENVELOPE = {generated_at: '2026-11-10T12:00:00Z', resources: VECTOR,
+  review_sha256: REVIEW_ANCHOR, schema_version: 1};
+const ENVELOPE_DIGEST = 'fd6d6c48202b2a1d14d7212630a92f0e8f3466bbd93016ea82e5ef7562b7c18d';
 
 test('sha256 matches published known-answer vectors', () => {
   assert.equal(sha256Hex(''),
@@ -62,6 +64,10 @@ test('envelope digest covers generated_at, schema_version and every record field
   assert.notEqual(exportDigest({...ENVELOPE, generated_at: '2026-11-10T12:30:00Z'}),
     ENVELOPE_DIGEST);
   assert.notEqual(exportDigest({...ENVELOPE, schema_version: 2}), ENVELOPE_DIGEST);
+  // The review anchor is part of the reviewed envelope: swapping or editing
+  // it must fail integrity just like an edited record.
+  assert.notEqual(exportDigest({...ENVELOPE, review_sha256: 'a'.repeat(64)}),
+    ENVELOPE_DIGEST);
   const edited = JSON.parse(JSON.stringify(ENVELOPE));
   edited.resources[0].name = 'Edited after export';
   assert.notEqual(exportDigest(edited), ENVELOPE_DIGEST);
@@ -74,10 +80,17 @@ test('envelope digest covers generated_at, schema_version and every record field
 });
 
 test('envelope digest refuses a snapshot missing a reviewed envelope field', () => {
-  for (const key of ['generated_at', 'resources', 'schema_version']) {
+  for (const key of ['generated_at', 'resources', 'review_sha256', 'schema_version']) {
     const incomplete = {...ENVELOPE};
     delete incomplete[key];
     assert.throws(() => exportDigest(incomplete), /envelope field/);
+  }
+});
+
+test('envelope digest refuses a malformed review anchor', () => {
+  for (const anchor of ['not-a-digest', 'A'.repeat(64), 42, null]) {
+    assert.throws(() => exportDigest({...ENVELOPE, review_sha256: anchor}),
+      /review anchor/);
   }
 });
 
@@ -86,7 +99,8 @@ function snapshot() {
     address: 'Test address', latitude: 44.9, longitude: -93.1, phone: '211',
     website: null, source_name: 'Test source', source_url: 'https://example.com/',
     verified_at: '2026-11-10T12:00:00Z'}];
-  const value = {schema_version: 1, generated_at: '2026-11-10T12:00:00Z', resources};
+  const value = {schema_version: 1, generated_at: '2026-11-10T12:00:00Z', resources,
+    review_sha256: REVIEW_ANCHOR};
   value.export_sha256 = exportDigest(value);
   return value;
 }

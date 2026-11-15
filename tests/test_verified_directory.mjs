@@ -21,6 +21,7 @@ const snapshot = {
     phone, website, source_name, source_url, verified_at}) => ({id, name, category,
     address, latitude, longitude, phone, website, source_name, source_url, verified_at})),
 };
+snapshot.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 snapshot.export_sha256 = exportDigest(snapshot);
 const now = Date.parse(snapshot.generated_at) + 60 * 60 * 1000;
 

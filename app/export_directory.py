@@ -7,12 +7,14 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .data import MAX_SNAPSHOT_BYTES, load_resources
 from .freshness import Freshness, resource_freshness
+from .history import snapshot_digest, verify_history
 from .models import Resource
 
 # The 211/911 notice is one wording across the exporter and every page module;
@@ -49,6 +51,11 @@ def directory_snapshot(resources, at: datetime) -> dict:
         "schema_version": 1, "generated_at": at.isoformat(),
         "notice": DIRECTORY_NOTICE,
         "resources": records,
+        # Anchor: the digest of the full reviewed snapshot this export derives
+        # from, matching history.snapshot_digest. It sits inside the digested
+        # envelope, so stripping or altering it fails the reader's integrity
+        # check; app.history verify ties it back to the recorded review log.
+        "review_sha256": snapshot_digest(resources),
     }
     snapshot["export_sha256"] = export_digest(snapshot)
     return snapshot
@@ -113,12 +120,14 @@ def resources_digest(records) -> str:
 
 
 # The envelope fields the page consults when deciding whether and what to
-# render. generated_at gates the freshness window and schema_version gates
-# interpretation, so a stale export rolled forward, or a record moved between
-# versions, must fail the same integrity check as an edited record. The
+# render. generated_at gates the freshness window, schema_version gates
+# interpretation, and review_sha256 ties the export to the reviewed source
+# snapshot (and through it, the recorded review history), so a stale export
+# rolled forward, a record moved between versions, or an anchor stripped or
+# swapped must fail the same integrity check as an edited record. The
 # notice stays out: the page renders its own pinned wording, never the
 # snapshot's.
-EXPORT_ENVELOPE_FIELDS = ("generated_at", "resources", "schema_version")
+EXPORT_ENVELOPE_FIELDS = ("generated_at", "resources", "review_sha256", "schema_version")
 
 
 def export_digest(snapshot) -> str:
@@ -132,20 +141,33 @@ def export_digest(snapshot) -> str:
     """
     if not isinstance(snapshot, dict) or any(key not in snapshot for key in EXPORT_ENVELOPE_FIELDS):
         raise ValueError("export misses a reviewed envelope field")
+    anchor = snapshot["review_sha256"]
+    if not isinstance(anchor, str) or not re.fullmatch(r"[0-9a-f]{64}", anchor):
+        raise ValueError("export review anchor must be a SHA-256 hex digest")
     envelope = {
         "generated_at": snapshot["generated_at"],
         "resources": _project_records(snapshot["resources"]),
+        "review_sha256": anchor,
         "schema_version": snapshot["schema_version"],
     }
     return hashlib.sha256(_canonical_export_json(envelope).encode("utf-8")).hexdigest()
 
 
-def export_file(source: Path, output: Path) -> None:
+def export_file(source: Path, output: Path, history: Path | None = None) -> None:
     source, output = Path(source), Path(output)
     # An export omits operator-only fields. Never replace its own source snapshot,
     # even through relative paths, symlinks or an existing hard-link alias.
     if source.resolve() == output.resolve() or (output.exists() and source.samefile(output)):
         raise ValueError("export output must not replace the source snapshot")
+    if history is not None:
+        # Opt-in provenance gate: the recorded review log must be intact and
+        # anchored to this exact snapshot, so an export never outruns its
+        # recorded review. Read-only; a refusal writes nothing.
+        verified = verify_history(Path(history), snapshot_path=source)
+        if not (verified["chain_ok"] and verified["snapshot_matches_latest"]):
+            raise ValueError(
+                "change history does not anchor this snapshot: "
+                + "; ".join(verified["problems"] or ["snapshot is not the recorded review"]))
     snapshot = directory_snapshot(load_resources(source), datetime.now(timezone.utc))
     text = json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n"
     # The browser reader enforces the same byte cap. Pretty-printing can expand
@@ -168,8 +190,11 @@ def main():
     parser = argparse.ArgumentParser(description="Validate and export a static directory (not publish it)")
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--history", type=Path, default=None,
+                        help="refuse the export unless this change-history log is intact and "
+                             "anchors the source snapshot as its latest recorded review")
     args = parser.parse_args()
-    export_file(args.source, args.output)
+    export_file(args.source, args.output, history=args.history)
 
 
 if __name__ == "__main__":

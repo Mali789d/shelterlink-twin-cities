@@ -133,20 +133,26 @@ export function resourcesDigest(resources) {
 
 // The envelope fields the page consults when deciding whether and what to
 // render, shared with EXPORT_ENVELOPE_FIELDS in app/export_directory.py.
-// generated_at gates the freshness window and schema_version gates
-// interpretation: a stale export rolled forward must fail the same check as
-// an edited record. The notice stays out; the page renders its own pinned
-// wording, never the snapshot's.
-export const EXPORT_ENVELOPE_FIELDS = ['generated_at', 'resources', 'schema_version'];
+// generated_at gates the freshness window, schema_version gates
+// interpretation, and review_sha256 ties the export to its reviewed source
+// snapshot: a stale export rolled forward or an anchor stripped or swapped
+// must fail the same check as an edited record. The notice stays out; the
+// page renders its own pinned wording, never the snapshot's.
+export const EXPORT_ENVELOPE_FIELDS = ['generated_at', 'resources', 'review_sha256', 'schema_version'];
 
 export function exportDigest(snapshot) {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)
       || EXPORT_ENVELOPE_FIELDS.some(key => !(key in snapshot))) {
     throw new Error('Export misses a reviewed envelope field');
   }
+  if (typeof snapshot.review_sha256 !== 'string'
+      || !/^[0-9a-f]{64}$/.test(snapshot.review_sha256)) {
+    throw new Error('Export review anchor must be a SHA-256 hex digest');
+  }
   return sha256Hex(canonicalJson({
     generated_at: snapshot.generated_at,
     resources: projectedResources(snapshot.resources),
+    review_sha256: snapshot.review_sha256,
     schema_version: snapshot.schema_version,
   }));
 }

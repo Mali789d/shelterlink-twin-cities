@@ -14,6 +14,7 @@ function directory(points = [['origin', 0, 0, 'meal'], ['east', 0, 1, 'shelter']
       source_name: 'Test fixture', source_url: 'https://example.com/',
       verified_at: time,
     }))};
+  snapshot.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   snapshot.export_sha256 = exportDigest(snapshot);
   return readDirectory(snapshot, now);
 }

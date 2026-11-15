@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readDirectory, filterCategory} from '../web/directory.mjs';
 import {exportDigest} from '../web/export-integrity.mjs';
 function resign(data) {
+  data.review_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   data.export_sha256 = exportDigest(data);
   return data;
 }
