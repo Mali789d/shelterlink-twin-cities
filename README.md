@@ -517,7 +517,7 @@ expiration rules, and a human correction path before any public launch.
 
 # Curated seed source review
 
-Reviewed November 14, 2026. This is a local-test directory, not a launched
+Reviewed November 15, 2026. This is a local-test directory, not a launched
 referral service. Source-page checks establish published service/contact facts,
 not available beds, walk-in eligibility, intake acceptance or a live response.
 The seed retains empty hours and unknown availability. Its 24-hour freshness
