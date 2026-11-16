@@ -86,13 +86,14 @@ def main():
                              "unrecorded snapshot change exits 1")
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
-    report = audit_resources(load_resources(args.source), now)
+    resources = load_resources(args.source)
+    report = audit_resources(resources, now)
     history_ok = True
     if args.history is not None:
         # One shared instant for both sections, so a record cannot pass the
         # audit clock and fail the history clock within a single run. The
         # verifier is read-only and reports line numbers, never record content.
-        verified = verify_history(args.history, snapshot_path=args.source, at=now)
+        verified = verify_history(args.history, resources=resources, at=now)
         report["history"] = {"record_count": verified["record_count"],
                              "chain_ok": verified["chain_ok"],
                              "snapshot_matches_latest": verified["snapshot_matches_latest"],
@@ -100,10 +101,14 @@ def main():
         # An intact chain whose tail does not match the audited snapshot means
         # the snapshot changed without a recorded review; both gaps gate.
         history_ok = verified["chain_ok"] and verified["snapshot_matches_latest"]
+    # Distinguish data-only export eligibility from the complete requested
+    # audit gate. A clean snapshot alone cannot turn a failed history check
+    # into a successful overall result. Available in report-only mode too.
+    report["check_passes"] = report["export_validation_passes"] and history_ok
     print(json.dumps(report, ensure_ascii=False, indent=2))
     # Opt-in shell gate, not publication approval. Advisory warnings stay
     # advisory, and report-only callers retain the existing success exit.
-    if args.check and not (report["export_validation_passes"] and history_ok):
+    if args.check and not report["check_passes"]:
         raise SystemExit(1)
 
 

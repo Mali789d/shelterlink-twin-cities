@@ -371,3 +371,50 @@ def test_audit_without_history_flag_reports_no_history_section(tmp_path):
     result = _run_audit(tmp_path, [resource(verified_at=datetime.now(timezone.utc))], '--check')
     assert result.returncode == 0, result.stderr
     assert 'history' not in json.loads(result.stdout)
+
+
+@pytest.mark.parametrize('with_check', [False, True])
+@pytest.mark.parametrize('state', ['clean', 'drift', 'missing', 'sample'])
+def test_combined_gate_status_matches_requested_checks(tmp_path, state, with_check):
+    now = datetime.now(timezone.utc)
+    source = _write_source(tmp_path, [resource(verified_at=now, is_sample=state == 'sample')])
+    history = tmp_path / 'history.jsonl'
+    if state != 'missing':
+        _append(history, source, 'reviewed fixture', at=AT)
+    if state == 'drift':
+        _write_source(tmp_path, [resource('drifted', verified_at=now)])
+    flags = ['--history', str(history)] + (['--check'] if with_check else [])
+    result = _run_audit_history(tmp_path, *flags)
+    report = json.loads(result.stdout)
+    assert report['check_passes'] is (state == 'clean')
+    assert report['export_validation_passes'] is (state != 'sample')
+    assert result.returncode == (1 if with_check and state != 'clean' else 0)
+
+
+def test_audit_uses_one_snapshot_for_data_and_history_during_source_edit(tmp_path, monkeypatch, capsys):
+    import app.audit_directory as audit
+    source = _write_source(tmp_path, [resource(verified_at=datetime.now(timezone.utc))])
+    history = tmp_path / 'history.jsonl'
+    _append(history, source, 'reviewed fixture', at=AT)
+    original_load = audit.load_resources
+    calls = []
+
+    def load_then_edit(path):
+        calls.append(path)
+        loaded = original_load(path)
+        _write_source(tmp_path, [resource('unrecorded', verified_at=datetime.now(timezone.utc))])
+        return loaded
+
+    monkeypatch.setattr(audit, 'load_resources', load_then_edit)
+    monkeypatch.setattr(sys, 'argv', ['audit', str(source), '--history', str(history), '--check'])
+    audit.main()
+    report = json.loads(capsys.readouterr().out)
+    assert calls == [source]
+    assert report['check_passes'] is True
+    assert report['history']['snapshot_matches_latest'] is True
+
+
+def test_data_only_combined_status_matches_export_status(tmp_path):
+    result = _run_audit(tmp_path, [resource(verified_at=datetime.now(timezone.utc))])
+    report = json.loads(result.stdout)
+    assert report['check_passes'] is report['export_validation_passes'] is True

@@ -315,7 +315,11 @@ history against the audited snapshot in the same read-only run: the report
 gains a `history` section (record count, chain and anchor status, and any
 problems by line), and with `--check` a broken chain, an incoherent timeline
 or a snapshot that has drifted from its latest recorded review exits 1
-alongside the export blockers. Without `--history` the audit reports and gates
+alongside the export blockers. The top-level `check_passes` boolean reports
+the combined result even without `--check`; `export_validation_passes` remains
+the data-only result and can be true while history fails. Both sections use
+the same loaded snapshot, so an intervening file edit cannot mix versions in
+one report. Without `--history` the audit reports and gates
 on snapshot data only, exactly as before.
 
 For a prioritized, read-only operator worklist, run
